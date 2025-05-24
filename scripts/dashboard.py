@@ -11,6 +11,26 @@ st.markdown("""
             font-family: 'Segoe UI',sans-serif;
             background-color: #f6fafd;
         }
+        /* Style the Streamlit tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            border-bottom: none !important;
+            margin-bottom: 0 !important;
+        }
+        .stTabs [data-baseweb="tab"] {
+            color: #145DA0 !important;
+            background: none !important;
+            border: none !important;
+            font-size: 1.25rem !important;
+            font-weight: 700;
+            padding: 18px 36px 10px 36px;
+            margin-right: 5px;
+            transition: color 0.2s;
+        }
+        .stTabs [data-baseweb="tab"][aria-selected="true"] {
+            color: #ff3c00 !important;
+            border-bottom: 3.5px solid #ff3c00 !important;
+            background: none !important;
+        }
         .big-title {
             font-size: 2.5rem !important; 
             color: #ff3c00 !important; 
@@ -101,7 +121,6 @@ def is_customer_closed(agent, trading_name, area, closed_accounts_df):
         (closed_accounts_df['Area'] == area)
     return closed_accounts_df[q].shape[0] > 0
 
-# --- Streamlit native tabs ---
 tab1, tab2 = st.tabs([
     "➕ Log a Visit",
     "📊 Dashboard"
@@ -118,7 +137,6 @@ with tab1:
     cols = st.columns([1,1,1])
     agent_name = cols[0].selectbox("Agent Name", customers["Agent Name"].dropna().unique(), key="visit_agent")
 
-    # Only show non-closed trading names for this agent
     agent_customers_all = customers[customers["Agent Name"] == agent_name]
     trading_names_open = []
     trading_names_closed = []
@@ -142,7 +160,6 @@ with tab1:
         area = agent_customers_all[agent_customers_all["Trading Name"] == trading_name]["Area"].values[0]
         can_submit = True
     else:
-        # It's a closed account; find the original name and area
         original_name = trading_name.replace("❌ ", "").replace(" (Closed)", "")
         area = agent_customers_all[agent_customers_all["Trading Name"] == original_name]["Area"].values[0] if original_name in agent_customers_all["Trading Name"].values else ""
         can_submit = False
@@ -213,7 +230,7 @@ with tab2:
                 year = st.selectbox('Year', year_list, key='dashboard_year')
             else:
                 year = datetime.now().year
-            quarter = st.selectbox('Quarter', [1, 2, 3, 4], key='dashboard_quarter')
+            quarter = st.selectbox('Quarter', [1, 2, 3, 4], key="dashboard_quarter")
     with filter5:
         pass
 
