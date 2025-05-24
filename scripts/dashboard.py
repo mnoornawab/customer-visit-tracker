@@ -17,7 +17,7 @@ with col2:
     if st.button("Dashboard"):
         st.session_state["page"] = "dashboard"
 
-# --- Page content ---
+# --- Data loading and utility functions ---
 CUSTOMERS_CSV = "customers.csv"
 VISITS_CSV = "visits.csv"
 
@@ -54,6 +54,7 @@ def is_customer_closed(agent, trading_name, area, closed_accounts_df):
         (closed_accounts_df['Area'] == area)
     return closed_accounts_df[q].shape[0] > 0
 
+# --- Log a Visit Page ---
 if st.session_state["page"] == "visit":
     st.markdown("<h2 style='color:#ff3c00; text-align:center; font-weight:900;'>LOG A VISIT</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center;'>Log your customer visits below. If a customer account is closed, select \"Yes\" and add a note.</p>", unsafe_allow_html=True)
@@ -63,33 +64,28 @@ if st.session_state["page"] == "visit":
     closed_accounts_df = get_closed_accounts_df(visits)
 
     cols = st.columns([1,1,1])
+    # Agent Name dropdown
     agent_name = cols[0].selectbox("Agent Name", customers["Agent Name"].dropna().unique(), key="visit_agent")
 
+    # Only show non-closed trading names for this agent
     agent_customers_all = customers[customers["Agent Name"] == agent_name]
     trading_names_open = []
-    trading_names_closed = []
     for _, row in agent_customers_all.iterrows():
-        if is_customer_closed(row['Agent Name'], row['Trading Name'], row['Area'], closed_accounts_df):
-            trading_names_closed.append(row['Trading Name'])
-        else:
+        if not is_customer_closed(row['Agent Name'], row['Trading Name'], row['Area'], closed_accounts_df):
             trading_names_open.append(row['Trading Name'])
 
-    trading_names_display = trading_names_open.copy()
-    if trading_names_closed:
-        trading_names_display += [f"❌ {name} (Closed)" for name in trading_names_closed]
-
-    trading_name = cols[1].selectbox(
-        "Trading Name (type to search)",
-        trading_names_display,
-        key="visit_trading"
-    )
-
-    if trading_name in trading_names_open:
+    if trading_names_open:
+        trading_name = cols[1].selectbox(
+            "Trading Name (type to search)",
+            trading_names_open,
+            key="visit_trading"
+        )
         area = agent_customers_all[agent_customers_all["Trading Name"] == trading_name]["Area"].values[0]
         can_submit = True
     else:
-        original_name = trading_name.replace("❌ ", "").replace(" (Closed)", "")
-        area = agent_customers_all[agent_customers_all["Trading Name"] == original_name]["Area"].values[0] if original_name in agent_customers_all["Trading Name"].values else ""
+        trading_name = ""
+        area = ""
+        cols[1].selectbox("Trading Name (type to search)", ["No open customers"], key="visit_trading_disabled", disabled=True)
         can_submit = False
 
     cols[2].text_input("Area", area, disabled=True, key="area_text")
@@ -99,8 +95,8 @@ if st.session_state["page"] == "visit":
     closed_account = st.selectbox("Closed Account", ["No", "Yes"], key="closed_account_select")
 
     add_btn = st.button("Add Visit", disabled=not can_submit)
-    if not can_submit and trading_name:
-        st.warning("This customer is a closed account. You cannot log further visits for a closed customer.")
+    if not can_submit and agent_name:
+        st.warning("All customers for this agent are marked as closed. You cannot log further visits for closed customers.")
 
     if add_btn and can_submit:
         visits = load_visits()
@@ -112,8 +108,7 @@ if st.session_state["page"] == "visit":
             "Notes": notes,
             "Closed Account": closed_account
         }])
-        if trading_name.startswith("❌ "):
-            new_visit["Trading Name"] = trading_name.replace("❌ ", "").replace(" (Closed)", "")
+        # Ensure all columns exist
         for col in ['Notes', 'Closed Account']:
             if col not in visits.columns:
                 visits[col] = ""
@@ -123,6 +118,8 @@ if st.session_state["page"] == "visit":
             new_visit.to_csv(VISITS_CSV, mode="w", header=True, index=False)
         st.success("✅ Visit logged successfully!")
         st.balloons()
+
+# --- Dashboard Page ---
 elif st.session_state["page"] == "dashboard":
     st.markdown("<h2 style='color:#145DA0; text-align:center; font-weight:900;'>DASHBOARD</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center;'>Analyze and download customer visit records. Use filters below.</p>", unsafe_allow_html=True)
@@ -185,7 +182,13 @@ elif st.session_state["page"] == "dashboard":
         st.markdown("#### Customer Visits")
         if not filtered.empty:
             def format_trading_name(row):
-                is_closed = is_customer_closed(row['Agent Name'], row['Trading Name'], row['Area'], closed_accounts_df)
+                # Mark as closed if in closed_accounts_df
+                is_closed = is_customer_closed(
+                    row['Agent Name'],
+                    row['Trading Name'],
+                    row['Area'],
+                    closed_accounts_df
+                )
                 if is_closed:
                     note = f" (Closed Account: {row['Notes']})" if row.get('Notes') else " (Closed Account)"
                     return f"❌ {row['Trading Name']}{note}"
@@ -194,11 +197,16 @@ elif st.session_state["page"] == "dashboard":
 
             styled_df = filtered.copy()
             styled_df['Trading Name'] = styled_df.apply(format_trading_name, axis=1)
-            styled_df = styled_df[['Agent Name', 'Trading Name', 'Area', 'Visit Date', 'Notes']]
+            styled_df = styled_df[['Agent Name', 'Trading Name', 'Area', 'Visit Date', 'Notes', 'Closed Account']]
             styled_df['Visit Date'] = styled_df['Visit Date'].astype(str)
 
             def highlight_closed(row):
-                is_closed = is_customer_closed(row['Agent Name'], row['Trading Name'].replace("❌ ","").split(" (Closed")[0], row['Area'], closed_accounts_df)
+                is_closed = is_customer_closed(
+                    row['Agent Name'],
+                    row['Trading Name'].replace("❌ ", "").split(" (Closed")[0],
+                    row['Area'],
+                    closed_accounts_df
+                )
                 if is_closed:
                     return ['background-color: #ffebe6; color: #a94442']*len(row)
                 else:
