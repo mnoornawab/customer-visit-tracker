@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import date, datetime
 import os
-from io import BytesIO
-from fpdf import FPDF
 
 # --- Page settings and style ---
 st.set_page_config(page_title="SIMA Customer Visits", layout="wide", page_icon="👁️")
@@ -74,34 +72,6 @@ def load_visits():
     else:
         visits = pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area', 'Visit Date', 'Notes', 'Closed Account'])
     return visits
-
-# --- PDF Export function ---
-def visits_to_pdf(df, title="SIMA Customer Visits Report"):
-    pdf = FPDF(orientation='L', unit='mm', format='A4')
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 12, title, ln=1, align="C")
-    pdf.set_font("Arial", '', 11)
-    pdf.cell(0, 9, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=1, align="R")
-    pdf.ln(2)
-    if df.empty:
-        pdf.set_font("Arial", '', 12)
-        pdf.cell(0, 10, "No visits for selected criteria.", 0, 1, "C")
-    else:
-        col_width = max(40, 220 // len(df.columns))
-        pdf.set_font("Arial", 'B', 11)
-        for col in df.columns:
-            pdf.cell(col_width, 8, str(col), border=1, align='C')
-        pdf.ln()
-        pdf.set_font("Arial", '', 10)
-        for _, row in df.iterrows():
-            for val in row:
-                pdf.cell(col_width, 8, str(val), border=1, align='C')
-            pdf.ln()
-    stream = BytesIO()
-    pdf.output(stream)
-    stream.seek(0)
-    return stream
 
 try:
     customers = pd.read_csv(CUSTOMERS_CSV)
@@ -271,9 +241,9 @@ with tab2:
         st.markdown("#### Quarterly Summary")
         st.dataframe(report_df, use_container_width=True, hide_index=True)
 
-    # --- Download Buttons ---
+    # --- Download Button only (no PDF) ---
     st.write("")
-    col_dl_csv, col_dl_pdf, col_spacer = st.columns([1.3,1.3,7])
+    col_dl_csv, col_spacer = st.columns([1.3,7])
     with col_dl_csv:
         csv = filtered.to_csv(index=False).encode('utf-8')
         st.download_button(
@@ -282,13 +252,4 @@ with tab2:
             "filtered_visits.csv",
             "text/csv",
             key='download-csv'
-        )
-    with col_dl_pdf:
-        pdf_buffer = visits_to_pdf(filtered)
-        st.download_button(
-            label="⬇️ Download PDF",
-            data=pdf_buffer,
-            file_name="filtered_visits.pdf",
-            mime="application/pdf",
-            key='download-pdf'
         )
