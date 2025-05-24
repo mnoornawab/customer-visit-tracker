@@ -11,37 +11,9 @@ st.markdown("""
             font-family: 'Segoe UI',sans-serif;
             background-color: #f6fafd;
         }
-        /* Custom tab "buttons" at the top */
-        .custom-tab-row {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-top: 32px;
-            margin-bottom: 8px;
-            gap: 32px;
-        }
-        .custom-tab {
-            padding: 12px 36px;
-            background: #e3f0ff;
-            border-radius: 30px 30px 0 0;
-            margin: 0 6px;
-            font-size: 1.25rem;
-            letter-spacing: 0.5px;
-            color: #145DA0;
-            font-weight: 700;
-            border: 2.5px solid #145DA0;
-            border-bottom: none;
-            cursor: pointer;
-            transition: all 0.13s;
-        }
-        .custom-tab.selected, .custom-tab:hover {
-            background: linear-gradient(90deg,#145DA0 60%,#0C2D48 100%);
-            color: #fff;
-            border-color: #0C2D48;
-        }
         .big-title {
-            font-size: 2.2rem !important; color: #145DA0; font-weight: 800;
-            text-align: center; margin-bottom: 0.1rem; margin-top: 0.3rem;
+            font-size: 2.5rem !important; color: #145DA0; font-weight: 800;
+            text-align: center; margin-bottom: 0.5rem; margin-top: 0.3rem;
             letter-spacing: 0.03em;
         }
         .subtitle {
@@ -82,7 +54,6 @@ st.markdown("""
         @media (max-width: 600px) {
             .form-container {padding: 0.3rem;}
             .big-title {font-size: 1.4rem !important;}
-            .custom-tab {padding: 8px 12px; font-size: 1rem;}
         }
     </style>
 """, unsafe_allow_html=True)
@@ -109,29 +80,7 @@ except Exception as e:
     st.error(f"Error loading customers.csv: {e}")
     st.stop()
 
-# --- Custom tab navigation using query params ---
-if "tab" not in st.session_state:
-    st.session_state["tab"] = "visit"
-
-def tab_button(label, tabkey, selected):
-    tab_class = "custom-tab selected" if selected else "custom-tab"
-    return st.markdown(
-        f'<span class="{tab_class}" onclick="window.location.search=\'?tab={tabkey}\'">{label}</span>',
-        unsafe_allow_html=True
-    )
-
-params = st.experimental_get_query_params()
-if "tab" in params:
-    st.session_state["tab"] = params["tab"][0]
-
-with st.container():
-    st.markdown('<div class="custom-tab-row">', unsafe_allow_html=True)
-    tab_button("➕ Log a Visit", "visit", st.session_state["tab"] == "visit")
-    tab_button("📊 Dashboard", "dashboard", st.session_state["tab"] == "dashboard")
-    st.markdown('</div>', unsafe_allow_html=True)
-
 def get_closed_accounts_df(visits):
-    # Return a DataFrame with (Agent Name, Trading Name, Area) that are closed
     if visits.empty or "Closed Account" not in visits.columns:
         return pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area'])
     closed = visits[visits['Closed Account'].astype(str).str.lower() == "yes"]
@@ -145,11 +94,15 @@ def is_customer_closed(agent, trading_name, area, closed_accounts_df):
         (closed_accounts_df['Area'] == area)
     return closed_accounts_df[q].shape[0] > 0
 
-# --- Main Pages ---
-if st.session_state["tab"] == "visit":
+# --- Streamlit native tabs ---
+tab1, tab2 = st.tabs([
+    "➕ Log a Visit",
+    "📊 Dashboard"
+])
+
+with tab1:
     st.markdown('<div class="big-title">SIMA Customer Visits</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Log your customer visits below. If a customer account is closed, select "Yes" and add a note.</div>', unsafe_allow_html=True)
-    st.write("")
     st.markdown('<div class="form-container">', unsafe_allow_html=True)
 
     visits = load_visits()
@@ -169,7 +122,6 @@ if st.session_state["tab"] == "visit":
             trading_names_open.append(row['Trading Name'])
 
     trading_names_display = trading_names_open.copy()
-    # Optionally show closed (disabled) with [CLOSED] label
     if trading_names_closed:
         trading_names_display += [f"❌ {name} (Closed)" for name in trading_names_closed]
 
@@ -179,7 +131,6 @@ if st.session_state["tab"] == "visit":
         key="visit_trading"
     )
 
-    # If user selects a closed customer, prevent form submission and show area accordingly
     if trading_name in trading_names_open:
         area = agent_customers_all[agent_customers_all["Trading Name"] == trading_name]["Area"].values[0]
         can_submit = True
@@ -209,7 +160,6 @@ if st.session_state["tab"] == "visit":
             "Notes": notes,
             "Closed Account": closed_account
         }])
-        # Undo any closed label
         if trading_name.startswith("❌ "):
             new_visit["Trading Name"] = trading_name.replace("❌ ", "").replace(" (Closed)", "")
         for col in ['Notes', 'Closed Account']:
@@ -223,7 +173,7 @@ if st.session_state["tab"] == "visit":
         st.balloons()
     st.markdown('</div>', unsafe_allow_html=True)
 
-elif st.session_state["tab"] == "dashboard":
+with tab2:
     st.markdown('<div class="big-title">SIMA Customer Visits</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Analyze and download customer visit records. Use filters below.</div>', unsafe_allow_html=True)
 
@@ -296,7 +246,6 @@ elif st.session_state["tab"] == "dashboard":
             styled_df = styled_df[['Agent Name', 'Trading Name', 'Area', 'Visit Date', 'Notes']]
             styled_df['Visit Date'] = styled_df['Visit Date'].astype(str)
 
-            # Highlight closed rows
             def highlight_closed(row):
                 is_closed = is_customer_closed(row['Agent Name'], row['Trading Name'].replace("❌ ","").split(" (Closed")[0], row['Area'], closed_accounts_df)
                 if is_closed:
@@ -346,7 +295,6 @@ elif st.session_state["tab"] == "dashboard":
             report.append(row)
         columns = ['Agent Name', 'Trading Name', 'Area'] + months_quarters[quarter]
         report_df = pd.DataFrame(report, columns=columns)
-        # Style closed accounts
         def closed_row_highlight(row):
             if str(row['Trading Name']).startswith('❌'):
                 return ['background-color: #ffebe6; color: #a94442']*len(row)
