@@ -367,7 +367,7 @@ if st.session_state["custom_tab"] == "visit":
             else:
                 new_visit = pd.DataFrame([{
                     "Agent Name": agent_name,
-                    "Trading Name": trading_name,
+                    "Trading Name": trading_name if not is_closed else original_name,
                     "Area": area,
                     "Visit Date": visit_date.strftime(DATE_FORMAT),
                     "Notes": notes,
@@ -487,11 +487,16 @@ elif st.session_state["custom_tab"] == "dashboard":
             is_closed = "❌" in str(row['Trading Name'])
             return ['background-color: #fff0f0; color: #d32f2f' if is_closed else ''] * len(row)
         
+        # Calculate appropriate height for the dataframe
+        table_height = min(600, (len(filtered) + 1) * 35 + 3)
+        
+        # Display the styled dataframe
         st.dataframe(
             display_df.style.apply(highlight_closed, axis=1),
             use_container_width=True,
             hide_index=True,
-            height=min(600, (len(filtered) + 1) * 35 + 3)
+            height=table_height
+        )
         
         # Download button
         csv = filtered.to_csv(index=False).encode('utf-8')
