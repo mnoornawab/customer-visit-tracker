@@ -24,9 +24,17 @@ def load_visits():
 
 def load_closed_accounts():
     if os.path.exists(CLOSED_ACCOUNTS_CSV):
-        return pd.read_csv(CLOSED_ACCOUNTS_CSV)
+        df = pd.read_csv(CLOSED_ACCOUNTS_CSV)
+        # If columns are missing, add them
+        for col in ['Agent Name', 'Trading Name', 'Area']:
+            if col not in df.columns:
+                df[col] = ""
+        return df
     else:
-        return pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area'])
+        # Always create with headers if missing
+        df = pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area'])
+        df.to_csv(CLOSED_ACCOUNTS_CSV, index=False)
+        return df
 
 def add_closed_account(agent, trading_name, area):
     df = load_closed_accounts()
