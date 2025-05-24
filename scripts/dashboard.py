@@ -272,25 +272,49 @@ st.set_page_config(page_title=PAGE_TITLE, layout="wide", page_icon=PAGE_ICON)
 inject_css()
 
 # ====================== TAB NAVIGATION ======================
-st.markdown('<div class="my-tabs-container">', unsafe_allow_html=True)
-for tab_key, tab_label in [("visit", "Log a Visit"), ("dashboard", "Dashboard")]:
-    selected = st.session_state["custom_tab"] == tab_key
-    tab_click = (
-        f"""<button class="my-tab{' selected' if selected else ''}" onclick="fetch('', {{method: 'POST', headers: {{'Content-Type': 'application/x-www-form-urlencoded'}}, body: 'tab={tab_key}'}}).then(() => window.location.reload());">{tab_label}</button>"""
-        if not selected else
-        f"""<button class="my-tab selected">{tab_label}</button>"""
-    )
-    st.markdown(tab_click, unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown("""
+<style>
+    .tab-row {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin: 20px 0;
+    }
+    .tab-button {
+        background: none;
+        border: none;
+        font-size: 1.1rem;
+        font-weight: 600;
+        padding: 8px 20px;
+        cursor: pointer;
+        color: #145DA0;
+        border-bottom: 3px solid transparent;
+        transition: all 0.2s;
+    }
+    .tab-button.active {
+        color: #ff3c00;
+        border-bottom: 3px solid #ff3c00;
+    }
+    .tab-button:hover:not(.active) {
+        color: #2e86de;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Handle tab switching
-if "tab" in st.experimental_get_query_params():
-    tab_val = st.experimental_get_query_params()["tab"][0]
-    if tab_val in ["visit", "dashboard"]:
-        st.session_state["custom_tab"] = tab_val
+# Create tabs
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("Log a Visit", key="tab_visit"):
+        st.query_params["tab"] = "visit"
+with col2:
+    if st.button("Dashboard", key="tab_dashboard"):
+        st.query_params["tab"] = "dashboard"
+
+# Get current tab from query params
+current_tab = st.query_params.get("tab", ["visit"])[0]
 
 # ====================== VISIT LOGGING TAB ======================
-if st.session_state["custom_tab"] == "visit":
+if current_tab == "visit":
     st.markdown('<div class="big-title">LOG A VISIT</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Track your customer interactions. Mark accounts as closed when needed.</div>', unsafe_allow_html=True)
     
@@ -384,7 +408,7 @@ if st.session_state["custom_tab"] == "visit":
         st.markdown('</div>', unsafe_allow_html=True)
 
 # ====================== DASHBOARD TAB ======================
-elif st.session_state["custom_tab"] == "dashboard":
+elif current_tab == "dashboard":
     st.markdown('<div class="big-title">VISIT DASHBOARD</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Analyze and export customer visit records</div>', unsafe_allow_html=True)
     
