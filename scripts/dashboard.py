@@ -13,13 +13,19 @@ st.markdown("""
         .main {background-color: #f6fafd;}
         .stTabs [data-baseweb="tab-list"] {justify-content: center;}
         .stTabs [data-baseweb="tab"] {font-size: 18px; padding: 12px 32px;}
-        .stButton>button {
-            background-color: #145DA0; color: white; font-size: 16px;
-            border-radius: 8px; padding: 8px 20px;
+        .stButton>button, .stDownloadButton>button {
+            background: linear-gradient(90deg, #145DA0 0%, #0C2D48 100%);
+            color: white; font-size: 17px; font-weight: 600;
+            border-radius: 10px; padding: 10px 30px; border: none; margin: 6px 0px 6px 0px;
+            box-shadow: 0 2px 8px #00000020;
+            transition: all 0.2s;
         }
-        .stButton>button:hover {background-color: #0C2D48; color: #fff;}
-        .stDataFrame {border-radius: 8px; overflow: hidden;}
-        .css-1v0mbdj {padding-top: 0rem;}
+        .stButton>button:hover, .stDownloadButton>button:hover {
+            background: linear-gradient(90deg, #2e86de 0%, #0C2D48 100%);
+            color: #fff;
+            transform: scale(1.03);
+        }
+        .stDataFrame {border-radius: 10px; overflow: hidden;}
         .block-container {padding-top: 2rem;}
         .big-title {
             font-size: 2.8rem !important; color: #145DA0; font-weight: 700;
@@ -29,20 +35,27 @@ st.markdown("""
             font-size: 1.2rem; color: #0C2D48; text-align: center;
             margin-bottom: 2rem;
         }
+        .stExpander, .stForm {
+            border-radius: 15px !important;
+            background: #f1f7ff !important;
+            border: 1.5px solid #cfe2ff !important;
+            padding: 10px 20px !important;
+        }
+        .stTextInput>div>div>input, .stTextInput>div>div>textarea {
+            background-color: #f4f8fc !important;
+            border-radius: 8px;
+            font-size: 16px;
+            color: #1a1a1a;
+        }
+        label, .css-1c7y2kd, .css-1ofwbyh, .css-1q8dd3e { color: #145DA0 !important; }
+        .stSelectbox>div>div>div>div { background-color: #f4f8fc !important; }
+        .stDownloadButton>button {margin-top: 18px;}
     </style>
 """, unsafe_allow_html=True)
 
 CUSTOMERS_CSV = "customers.csv"
 VISITS_CSV = "visits.csv"
 
-# --- Load customers data ---
-try:
-    customers = pd.read_csv(CUSTOMERS_CSV)
-except Exception as e:
-    st.error(f"Error loading customers.csv: {e}")
-    st.stop()
-
-# --- Load or create visits data ---
 def load_visits():
     if os.path.exists(VISITS_CSV):
         visits = pd.read_csv(VISITS_CSV)
@@ -56,6 +69,31 @@ def load_visits():
         visits = pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area', 'Visit Date', 'Notes', 'Closed Account'])
     return visits
 
+# --- EXPLANATION OF "APP PASSWORD" ---
+def app_password_info():
+    st.markdown("""
+    <span style="color:#0C2D48; font-size:17px;">
+    <b>What is a Gmail App Password?</b><br>
+    Google now requires "App Passwords" for third-party apps (like this dashboard) to send email using your Gmail.<br>
+    <b>How to get one:</b>
+    <ol>
+        <li>Go to <a href="https://myaccount.google.com/security" target="_blank">Google Account Security</a>.</li>
+        <li>Turn on 2-Step Verification (if not already).</li>
+        <li>Scroll down to "App passwords".</li>
+        <li>Generate a new app password for "Mail".</li>
+        <li>Copy the 16-digit code shown and use it as your password here.</li>
+    </ol>
+    <span style="font-size:15px;color:#333;">You only need to do this once per account.</span>
+    </span>
+    """, unsafe_allow_html=True)
+
+# --- Load customers data ---
+try:
+    customers = pd.read_csv(CUSTOMERS_CSV)
+except Exception as e:
+    st.error(f"Error loading customers.csv: {e}")
+    st.stop()
+
 tab1, tab2 = st.tabs(["➕ Log a Visit", "📊 Dashboard"])
 
 with tab1:
@@ -68,13 +106,13 @@ with tab1:
         with col1:
             agent_name = st.selectbox("Agent Name", customers["Agent Name"].dropna().unique(), key="visit_agent")
         with col2:
-            # Filter trading names by agent, and provide search box
-            search_term = st.text_input("Search Trading Name", "", key="trading_search")
             agent_customers = customers[customers["Agent Name"] == agent_name]
             trading_names = agent_customers["Trading Name"].dropna().unique().tolist()
-            if search_term:
-                trading_names = [n for n in trading_names if search_term.lower() in n.lower()]
-            trading_name = st.selectbox("Trading Name", trading_names, key="visit_trading")
+            trading_name = st.selectbox(
+                "Trading Name (type to search)", 
+                trading_names,
+                key="visit_trading"
+            )
         with col3:
             if trading_name in agent_customers["Trading Name"].values:
                 area = agent_customers[agent_customers["Trading Name"] == trading_name]["Area"].values[0]
@@ -183,7 +221,6 @@ with tab2:
         months_quarters = {1: ['Jan','Feb','Mar'], 2: ['Apr','May','Jun'], 3: ['Jul','Aug','Sep'], 4: ['Oct','Nov','Dec']}
         months_numbers = {1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12]}
         report = []
-        # Only show customers for selected agent
         customers_filtered = customers
         if agent != 'All':
             customers_filtered = customers_filtered[customers_filtered['Agent Name'] == agent]
@@ -225,23 +262,24 @@ with tab2:
 
     # --- Download and Email Buttons ---
     st.write("")
-    col_dl, col_email, col_spacer = st.columns([1,2,7])
+    col_dl, col_email, col_spacer = st.columns([1.2,2,7])
     with col_dl:
         csv = filtered.to_csv(index=False).encode('utf-8')
         st.download_button(
-            "Download filtered visits as CSV",
+            "⬇️ Download filtered visits as CSV",
             csv,
             "filtered_visits.csv",
             "text/csv",
             key='download-csv'
         )
     with col_email:
-        with st.expander("📧 Email this report"):
+        with st.expander("📧 Email this report", expanded=False):
             with st.form("email_form"):
                 email_to = st.text_input("Recipient Email")
                 email_from = st.text_input("Your Gmail address")
                 email_password = st.text_input("Your Gmail App Password", type="password")
-                submit_email = st.form_submit_button("Send report by email")
+                submit_email = st.form_submit_button("📨 Send report by email")
+            app_password_info()
             if submit_email:
                 if not email_to or not email_from or not email_password:
                     st.error("Please enter all email details.")
