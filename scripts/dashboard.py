@@ -12,13 +12,20 @@ st.markdown("""
             background-color: #f6fafd;
         }
         .big-title {
-            font-size: 2.5rem !important; color: #145DA0; font-weight: 800;
-            text-align: center; margin-bottom: 0.5rem; margin-top: 0.3rem;
+            font-size: 2.5rem !important; 
+            color: #ff3c00 !important; 
+            font-weight: 900;
+            text-align: center; 
+            margin-bottom: 0.5rem; 
+            margin-top: 0.3rem;
             letter-spacing: 0.03em;
         }
         .subtitle {
-            font-size: 1.12rem; color: #0C2D48; text-align: center;
-            margin-bottom: 2rem; margin-top: 0.8rem;
+            font-size: 1.1rem; 
+            color: #0C2D48; 
+            text-align: center;
+            margin-bottom: 2rem; 
+            margin-top: 0.8rem;
         }
         .form-container {
             background: #eef6ff;
@@ -101,7 +108,7 @@ tab1, tab2 = st.tabs([
 ])
 
 with tab1:
-    st.markdown('<div class="big-title">SIMA Customer Visits</div>', unsafe_allow_html=True)
+    st.markdown('<div class="big-title">LOG A VISIT</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Log your customer visits below. If a customer account is closed, select "Yes" and add a note.</div>', unsafe_allow_html=True)
     st.markdown('<div class="form-container">', unsafe_allow_html=True)
 
@@ -174,7 +181,7 @@ with tab1:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with tab2:
-    st.markdown('<div class="big-title">SIMA Customer Visits</div>', unsafe_allow_html=True)
+    st.markdown('<div class="big-title">DASHBOARD</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Analyze and download customer visit records. Use filters below.</div>', unsafe_allow_html=True)
 
     visits = load_visits()
