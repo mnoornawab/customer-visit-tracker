@@ -272,14 +272,13 @@ st.set_page_config(page_title=PAGE_TITLE, layout="wide", page_icon=PAGE_ICON)
 inject_css()
 
 # ====================== TAB NAVIGATION ======================
+# Initialize tab state
+if "st.session_state.current_tab" not in st.session_state:
+    st.session_state.st.session_state.current_tab = "visit"
+
+# Tab selection buttons - styled to match your design
 st.markdown("""
 <style>
-    .tab-row {
-        display: flex;
-        justify-content: center;
-        gap: 20px;
-        margin: 20px 0;
-    }
     .tab-button {
         background: none;
         border: none;
@@ -290,6 +289,7 @@ st.markdown("""
         color: #145DA0;
         border-bottom: 3px solid transparent;
         transition: all 0.2s;
+        width: 100%;
     }
     .tab-button.active {
         color: #ff3c00;
@@ -301,20 +301,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Create tabs
 col1, col2 = st.columns(2)
 with col1:
     if st.button("Log a Visit", key="tab_visit"):
-        st.query_params["tab"] = "visit"
+        st.session_state.st.session_state.current_tab = "visit"
 with col2:
     if st.button("Dashboard", key="tab_dashboard"):
-        st.query_params["tab"] = "dashboard"
-
-# Get current tab from query params
-current_tab = st.query_params.get("tab", ["visit"])[0]
+        st.session_state.st.session_state.current_tab = "dashboard"
 
 # ====================== VISIT LOGGING TAB ======================
-if current_tab == "visit":
+if st.session_state.current_tab == "visit":
     st.markdown('<div class="big-title">LOG A VISIT</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Track your customer interactions. Mark accounts as closed when needed.</div>', unsafe_allow_html=True)
     
@@ -408,7 +404,7 @@ if current_tab == "visit":
         st.markdown('</div>', unsafe_allow_html=True)
 
 # ====================== DASHBOARD TAB ======================
-elif current_tab == "dashboard":
+elif st.session_state.current_tab == "dashboard":
     st.markdown('<div class="big-title">VISIT DASHBOARD</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Analyze and export customer visit records</div>', unsafe_allow_html=True)
     
