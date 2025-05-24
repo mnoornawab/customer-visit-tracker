@@ -5,21 +5,9 @@ import os
 
 st.set_page_config(page_title="SIMA Customer Visits", layout="wide", page_icon="👁️")
 
-# --- Simple page navigation buttons ---
-if "page" not in st.session_state:
-    st.session_state["page"] = "visit"
-
-col1, col2 = st.columns([1,1])
-with col1:
-    if st.button("Log a Visit"):
-        st.session_state["page"] = "visit"
-with col2:
-    if st.button("Dashboard"):
-        st.session_state["page"] = "dashboard"
-
-# --- Data loading and utility functions ---
 CUSTOMERS_CSV = "customers.csv"
 VISITS_CSV = "visits.csv"
+CLOSED_ACCOUNTS_CSV = "closed_accounts.csv"
 
 def load_visits():
     if os.path.exists(VISITS_CSV):
@@ -34,17 +22,21 @@ def load_visits():
         visits = pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area', 'Visit Date', 'Notes', 'Closed Account'])
     return visits
 
-try:
-    customers = pd.read_csv(CUSTOMERS_CSV)
-except Exception as e:
-    st.error(f"Error loading customers.csv: {e}")
-    st.stop()
-
-def get_closed_accounts_df(visits):
-    if visits.empty or "Closed Account" not in visits.columns:
+def load_closed_accounts():
+    if os.path.exists(CLOSED_ACCOUNTS_CSV):
+        return pd.read_csv(CLOSED_ACCOUNTS_CSV)
+    else:
         return pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area'])
-    closed = visits[visits['Closed Account'].astype(str).str.lower() == "yes"]
-    return closed.drop_duplicates(subset=['Agent Name', 'Trading Name', 'Area'])[['Agent Name', 'Trading Name', 'Area']]
+
+def add_closed_account(agent, trading_name, area):
+    df = load_closed_accounts()
+    exists = ((df['Agent Name'] == agent) &
+              (df['Trading Name'] == trading_name) &
+              (df['Area'] == area)).any()
+    if not exists:
+        df2 = pd.DataFrame([{'Agent Name': agent, 'Trading Name': trading_name, 'Area': area}])
+        df = pd.concat([df, df2], ignore_index=True)
+        df.to_csv(CLOSED_ACCOUNTS_CSV, index=False)
 
 def is_customer_closed(agent, trading_name, area, closed_accounts_df):
     if closed_accounts_df.empty:
@@ -54,6 +46,27 @@ def is_customer_closed(agent, trading_name, area, closed_accounts_df):
         (closed_accounts_df['Area'] == area)
     return closed_accounts_df[q].shape[0] > 0
 
+try:
+    customers = pd.read_csv(CUSTOMERS_CSV)
+except Exception as e:
+    st.error(f"Error loading customers.csv: {e}")
+    st.stop()
+
+# --- Simple page navigation buttons ---
+if "page" not in st.session_state:
+    st.session_state["page"] = "visit"
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    if st.button("Log a Visit"):
+        st.session_state["page"] = "visit"
+with col2:
+    if st.button("Dashboard"):
+        st.session_state["page"] = "dashboard"
+with col3:
+    if st.button("Closed Accounts"):
+        st.session_state["page"] = "closed"
+
 # --- Log a Visit Page ---
 if st.session_state["page"] == "visit":
     st.markdown("<h2 style='color:#ff3c00; text-align:center; font-weight:900;'>LOG A VISIT</h2>", unsafe_allow_html=True)
@@ -61,26 +74,25 @@ if st.session_state["page"] == "visit":
     st.write("")
 
     visits = load_visits()
-    closed_accounts_df = get_closed_accounts_df(visits)
+    closed_accounts_df = load_closed_accounts()
 
     cols = st.columns([1,1,1])
-    # Agent Name dropdown
     agent_name = cols[0].selectbox("Agent Name", customers["Agent Name"].dropna().unique(), key="visit_agent")
 
-    # Only show non-closed trading names for this agent
     agent_customers_all = customers[customers["Agent Name"] == agent_name]
     trading_names_open = []
+    areas_open = []
     for _, row in agent_customers_all.iterrows():
         if not is_customer_closed(row['Agent Name'], row['Trading Name'], row['Area'], closed_accounts_df):
             trading_names_open.append(row['Trading Name'])
+            areas_open.append(row['Area'])
 
     if trading_names_open:
         trading_name = cols[1].selectbox(
-            "Trading Name (type to search)",
-            trading_names_open,
-            key="visit_trading"
+            "Trading Name (type to search)", trading_names_open, key="visit_trading"
         )
-        area = agent_customers_all[agent_customers_all["Trading Name"] == trading_name]["Area"].values[0]
+        idx = trading_names_open.index(trading_name)
+        area = areas_open[idx]
         can_submit = True
     else:
         trading_name = ""
@@ -108,7 +120,6 @@ if st.session_state["page"] == "visit":
             "Notes": notes,
             "Closed Account": closed_account
         }])
-        # Ensure all columns exist
         for col in ['Notes', 'Closed Account']:
             if col not in visits.columns:
                 visits[col] = ""
@@ -116,7 +127,12 @@ if st.session_state["page"] == "visit":
             new_visit.to_csv(VISITS_CSV, mode="a", header=False, index=False)
         else:
             new_visit.to_csv(VISITS_CSV, mode="w", header=True, index=False)
-        st.success("✅ Visit logged successfully!")
+        # If closed, add to closed_accounts.csv
+        if closed_account == "Yes":
+            add_closed_account(agent_name, trading_name, area)
+            st.success("✅ Visit logged successfully and marked as closed. This customer will no longer appear in the list.")
+        else:
+            st.success("✅ Visit logged successfully!")
         st.balloons()
 
 # --- Dashboard Page ---
@@ -126,7 +142,7 @@ elif st.session_state["page"] == "dashboard":
     st.write("")
 
     visits = load_visits()
-    closed_accounts_df = get_closed_accounts_df(visits)
+    closed_accounts_df = load_closed_accounts()
 
     filter1, filter2, filter3, filter4, filter5 = st.columns([1.8,1.8,1.8,1.8,2])
     with filter1:
@@ -147,8 +163,9 @@ elif st.session_state["page"] == "dashboard":
             start_date = st.date_input("Start Date", value=date.today(), key="dashboard_start")
             end_date = st.date_input("End Date", value=date.today(), key="dashboard_end")
         else:
-            if not visits.empty and 'Visit Date' in visits.columns:
-                year_list = sorted(visits['Visit Date'].dropna().dt.year.unique().tolist())
+            visits_for_year = visits if visits.empty else visits.dropna(subset=['Visit Date'])
+            if not visits_for_year.empty and 'Visit Date' in visits_for_year.columns:
+                year_list = sorted(visits_for_year['Visit Date'].dropna().dt.year.unique().tolist())
                 if not year_list:
                     year_list = [datetime.now().year]
                 year = st.selectbox('Year', year_list, key='dashboard_year')
@@ -182,7 +199,7 @@ elif st.session_state["page"] == "dashboard":
         st.markdown("#### Customer Visits")
         if not filtered.empty:
             def format_trading_name(row):
-                # Mark as closed if in closed_accounts_df
+                # Mark as closed if in closed_accounts.csv
                 is_closed = is_customer_closed(
                     row['Agent Name'],
                     row['Trading Name'],
@@ -273,3 +290,14 @@ elif st.session_state["page"] == "dashboard":
             "text/csv",
             key='download-csv'
         )
+
+# --- Closed Accounts Page ---
+elif st.session_state["page"] == "closed":
+    st.markdown("<h2 style='color:#a94442; text-align:center; font-weight:900;'>CLOSED ACCOUNTS</h2>", unsafe_allow_html=True)
+    st.write("")
+    closed_accounts_df = load_closed_accounts()
+    if closed_accounts_df.empty:
+        st.info("No closed accounts.")
+    else:
+        st.dataframe(closed_accounts_df.style.apply(lambda row: ['background-color: #ffebe6; color: #a94442']*len(row), axis=1),
+                     use_container_width=True, hide_index=True)
