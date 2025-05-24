@@ -273,12 +273,18 @@ inject_css()
 
 # ====================== TAB NAVIGATION ======================
 # Initialize tab state
-if "st.session_state.current_tab" not in st.session_state:
-    st.session_state.st.session_state.current_tab = "visit"
+if "current_tab" not in st.session_state:
+    st.session_state.current_tab = "visit"
 
-# Tab selection buttons - styled to match your design
+# Custom CSS for tabs
 st.markdown("""
 <style>
+    .tab-row {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin: 20px 0 30px 0;
+    }
     .tab-button {
         background: none;
         border: none;
@@ -289,7 +295,6 @@ st.markdown("""
         color: #145DA0;
         border-bottom: 3px solid transparent;
         transition: all 0.2s;
-        width: 100%;
     }
     .tab-button.active {
         color: #ff3c00;
@@ -301,13 +306,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Create tabs
+st.markdown('<div class="tab-row">', unsafe_allow_html=True)
 col1, col2 = st.columns(2)
 with col1:
     if st.button("Log a Visit", key="tab_visit"):
-        st.session_state.st.session_state.current_tab = "visit"
+        st.session_state.current_tab = "visit"
 with col2:
     if st.button("Dashboard", key="tab_dashboard"):
-        st.session_state.st.session_state.current_tab = "dashboard"
+        st.session_state.current_tab = "dashboard"
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ====================== VISIT LOGGING TAB ======================
 if st.session_state.current_tab == "visit":
