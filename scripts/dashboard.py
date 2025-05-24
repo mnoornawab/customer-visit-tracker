@@ -16,11 +16,9 @@ except Exception as e:
 # --- Sidebar Filters ---
 agent_list = ['All'] + sorted(customers['Agent Name'].dropna().astype(str).unique().tolist())
 area_list = ['All'] + sorted(customers['Area'].dropna().astype(str).unique().tolist())
-province_list = ['All'] + sorted(customers['Province'].dropna().astype(str).unique().tolist())
 
 agent = st.sidebar.selectbox('Select Agent', agent_list)
 area = st.sidebar.selectbox('Select Area', area_list)
-province = st.sidebar.selectbox('Select Province', province_list)
 if not visits.empty and 'Visit Date' in visits.columns:
     year_list = sorted(visits['Visit Date'].dropna().dt.year.unique().tolist())
     year = st.sidebar.selectbox('Select Year', year_list)
@@ -29,14 +27,12 @@ else:
 quarter = st.sidebar.selectbox('Select Quarter', [1, 2, 3, 4])
 
 # --- Filtering Logic ---
-def filter_data(agent, area, province, year, quarter):
+def filter_data(agent, area, year, quarter):
     df = visits.copy()
     if agent != 'All':
         df = df[df['Agent Name'] == agent]
     if area != 'All':
         df = df[df['Area'] == area]
-    if province != 'All':
-        df = df[df['Province'] == province]
     if 'Visit Date' in df.columns:
         df = df[df['Visit Date'].dt.year == year]
         df = df[df['Visit Date'].dt.quarter == quarter]
@@ -44,22 +40,20 @@ def filter_data(agent, area, province, year, quarter):
 
 months_quarters = {1: ['Jan','Feb','Mar'], 2: ['Apr','May','Jun'], 3: ['Jul','Aug','Sep'], 4: ['Oct','Nov','Dec']}
 months_numbers = {1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12]}
-filtered_visits = filter_data(agent, area, province, year, quarter)
+filtered_visits = filter_data(agent, area, year, quarter)
 
 # --- Prepare Report Table ---
 report = []
 for _, cust in customers.iterrows():
     if (agent != 'All' and str(cust['Agent Name']) != str(agent)) or \
-       (area != 'All' and str(cust['Area']) != str(area)) or \
-       (province != 'All' and str(cust['Province']) != str(province)):
+       (area != 'All' and str(cust['Area']) != str(area)):
         continue
-    row = [cust['Agent Name'], cust['Trading Name'], cust['Area'], cust['Province']]
+    row = [cust['Agent Name'], cust['Trading Name'], cust['Area']]
     for m in months_numbers[quarter]:
         month_visits = filtered_visits[
             (filtered_visits['Trading Name'] == cust['Trading Name']) &
             (filtered_visits['Agent Name'] == cust['Agent Name']) &
             (filtered_visits['Area'] == cust['Area']) &
-            (filtered_visits['Province'] == cust['Province']) &
             (filtered_visits['Visit Date'].dt.month == m)
         ]
         if not month_visits.empty:
@@ -68,11 +62,11 @@ for _, cust in customers.iterrows():
         else:
             row.append("0")
     report.append(row)
-columns = ['Agent Name', 'Trading Name', 'Area', 'Province'] + months_quarters[quarter]
+columns = ['Agent Name', 'Trading Name', 'Area'] + months_quarters[quarter]
 report_df = pd.DataFrame(report, columns=columns)
 
 st.title("Customer Visit Dashboard")
-st.markdown("**Filter by agent, area, province, year, quarter. Download or email the report below.**")
+st.markdown("**Filter by agent, area, year, quarter. Download or email the report below.**")
 st.dataframe(report_df)
 
 # --- Download Button ---
