@@ -11,25 +11,33 @@ st.markdown("""
             font-family: 'Segoe UI',sans-serif;
             background-color: #f6fafd;
         }
-        /* Style the Streamlit tabs */
-        .stTabs [data-baseweb="tab-list"] {
-            border-bottom: none !important;
-            margin-bottom: 0 !important;
+        .custom-tabs-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 30px;
+            margin-bottom: 12px;
+            gap: 20px;
         }
-        .stTabs [data-baseweb="tab"] {
-            color: #145DA0 !important;
-            background: none !important;
-            border: none !important;
-            font-size: 1.25rem !important;
-            font-weight: 700;
-            padding: 18px 36px 10px 36px;
-            margin-right: 5px;
-            transition: color 0.2s;
+        .custom-tab-btn {
+            padding: 12px 36px;
+            font-size: 1.25rem;
+            font-weight: 900;
+            color: #145DA0;
+            background: #e3f0ff;
+            border: 2px solid #145DA0;
+            border-bottom: none;
+            border-radius: 18px 18px 0 0;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-bottom: -2px;
+            outline: none;
         }
-        .stTabs [data-baseweb="tab"][aria-selected="true"] {
-            color: #ff3c00 !important;
-            border-bottom: 3.5px solid #ff3c00 !important;
-            background: none !important;
+        .custom-tab-btn.selected {
+            color: #fff !important;
+            background: linear-gradient(90deg,#ff3c00 40%,#145DA0 100%) !important;
+            border-color: #ff3c00 #145DA0 #eef6ff #145DA0;
+            z-index: 2;
         }
         .big-title {
             font-size: 2.5rem !important; 
@@ -37,7 +45,7 @@ st.markdown("""
             font-weight: 900;
             text-align: center; 
             margin-bottom: 0.5rem; 
-            margin-top: 0.3rem;
+            margin-top: 0.8rem;
             letter-spacing: 0.03em;
         }
         .subtitle {
@@ -45,7 +53,7 @@ st.markdown("""
             color: #0C2D48; 
             text-align: center;
             margin-bottom: 2rem; 
-            margin-top: 0.8rem;
+            margin-top: 0.5rem;
         }
         .form-container {
             background: #eef6ff;
@@ -81,6 +89,7 @@ st.markdown("""
         @media (max-width: 600px) {
             .form-container {padding: 0.3rem;}
             .big-title {font-size: 1.4rem !important;}
+            .custom-tab-btn {font-size: 1rem; padding: 8px 16px;}
         }
     </style>
 """, unsafe_allow_html=True)
@@ -121,12 +130,30 @@ def is_customer_closed(agent, trading_name, area, closed_accounts_df):
         (closed_accounts_df['Area'] == area)
     return closed_accounts_df[q].shape[0] > 0
 
-tab1, tab2 = st.tabs([
-    "➕ Log a Visit",
-    "📊 Dashboard"
-])
+# --- Custom Tabs state ---
+if "custom_tab" not in st.session_state:
+    st.session_state["custom_tab"] = "visit"
 
-with tab1:
+# --- Custom tab row ---
+st.markdown('<div class="custom-tabs-row">', unsafe_allow_html=True)
+c1, c2 = st.columns([1,1])
+with c1:
+    if st.button("➕ Log a Visit", key="tab_visit_btn", help="Log a new customer visit"):
+        st.session_state["custom_tab"] = "visit"
+    st.markdown(
+        f'<button class="custom-tab-btn{" selected" if st.session_state["custom_tab"]=="visit" else ""}">➕ Log a Visit</button>',
+        unsafe_allow_html=True
+    )
+with c2:
+    if st.button("📊 Dashboard", key="tab_dashboard_btn", help="View Dashboard"):
+        st.session_state["custom_tab"] = "dashboard"
+    st.markdown(
+        f'<button class="custom-tab-btn{" selected" if st.session_state["custom_tab"]=="dashboard" else ""}">📊 Dashboard</button>',
+        unsafe_allow_html=True
+    )
+st.markdown('</div>', unsafe_allow_html=True)
+
+if st.session_state["custom_tab"] == "visit":
     st.markdown('<div class="big-title">LOG A VISIT</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Log your customer visits below. If a customer account is closed, select "Yes" and add a note.</div>', unsafe_allow_html=True)
     st.markdown('<div class="form-container">', unsafe_allow_html=True)
@@ -197,7 +224,7 @@ with tab1:
         st.balloons()
     st.markdown('</div>', unsafe_allow_html=True)
 
-with tab2:
+if st.session_state["custom_tab"] == "dashboard":
     st.markdown('<div class="big-title">DASHBOARD</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Analyze and download customer visit records. Use filters below.</div>', unsafe_allow_html=True)
 
