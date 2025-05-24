@@ -8,7 +8,10 @@ import ssl
 # --- Load Data ---
 try:
     customers = pd.read_csv('customers.csv')
-    visits = pd.read_csv('visits.csv', parse_dates=['Visit Date'])
+    visits = pd.read_csv('visits.csv')
+    visits['Visit Date'] = pd.to_datetime(visits['Visit Date'], errors='coerce')
+    # Optional: show bad rows
+    # st.write("Rows with invalid Visit Date:", visits[visits['Visit Date'].isna()])
 except Exception as e:
     st.error(f"Error loading CSV files: {e}")
     st.stop()
