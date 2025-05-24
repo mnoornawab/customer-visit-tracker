@@ -3,49 +3,56 @@ import pandas as pd
 from datetime import date, datetime
 import os
 
-# --- Page settings and style ---
 st.set_page_config(page_title="SIMA Customer Visits", layout="wide", page_icon="👁️")
+
 st.markdown("""
     <style>
-        html, body, [class*="css"] {
-            font-family: 'Segoe UI',sans-serif;
-            background-color: #f6fafd;
-        }
-        .custom-tabs-row {
+        .my-tabs-container {
             display: flex;
             justify-content: center;
-            align-items: center;
-            margin-top: 30px;
-            margin-bottom: 12px;
-            gap: 20px;
+            align-items: end;
+            gap: 32px;
+            margin-top: 32px;
+            margin-bottom: 0px;
         }
-        .custom-tab-btn {
-            padding: 12px 36px;
-            font-size: 1.25rem;
-            font-weight: 900;
-            color: #145DA0;
-            background: #e3f0ff;
-            border: 2px solid #145DA0;
-            border-bottom: none;
-            border-radius: 18px 18px 0 0;
-            cursor: pointer;
-            transition: all 0.15s;
-            margin-bottom: -2px;
+        .my-tab {
+            background: none;
+            border: none;
             outline: none;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #145DA0;
+            padding: 8px 34px 4px 34px;
+            margin-bottom: 0;
+            cursor: pointer;
+            position: relative;
+            transition: color 0.18s;
+            border-radius: 0;
         }
-        .custom-tab-btn.selected {
-            color: #fff !important;
-            background: linear-gradient(90deg,#ff3c00 40%,#145DA0 100%) !important;
-            border-color: #ff3c00 #145DA0 #eef6ff #145DA0;
-            z-index: 2;
+        .my-tab.selected {
+            color: #ff3c00;
+            font-weight: 900;
+        }
+        .my-tab.selected:after {
+            content: "";
+            display: block;
+            margin: 0 auto;
+            margin-top: 5px;
+            width: 50%;
+            height: 3px;
+            background: #ff3c00;
+            border-radius: 2px;
+        }
+        .my-tab:not(.selected):hover {
+            color: #2e86de;
         }
         .big-title {
-            font-size: 2.5rem !important; 
+            font-size: 2.3rem !important; 
             color: #ff3c00 !important; 
             font-weight: 900;
             text-align: center; 
             margin-bottom: 0.5rem; 
-            margin-top: 0.8rem;
+            margin-top: 1.1rem;
             letter-spacing: 0.03em;
         }
         .subtitle {
@@ -53,7 +60,7 @@ st.markdown("""
             color: #0C2D48; 
             text-align: center;
             margin-bottom: 2rem; 
-            margin-top: 0.5rem;
+            margin-top: 0.6rem;
         }
         .form-container {
             background: #eef6ff;
@@ -89,11 +96,35 @@ st.markdown("""
         @media (max-width: 600px) {
             .form-container {padding: 0.3rem;}
             .big-title {font-size: 1.4rem !important;}
-            .custom-tab-btn {font-size: 1rem; padding: 8px 16px;}
+            .my-tab { font-size: 1rem; padding-left: 10px; padding-right: 10px;}
         }
     </style>
 """, unsafe_allow_html=True)
 
+# Tab state
+if "custom_tab" not in st.session_state:
+    st.session_state["custom_tab"] = "visit"
+
+# --- Custom Tabs (browser-like) ---
+st.markdown('<div class="my-tabs-container">', unsafe_allow_html=True)
+col1, col2 = st.columns([1,1])
+with col1:
+    if st.button("Log a Visit", key="tab_visit_btn", help="Log a new customer visit"):
+        st.session_state["custom_tab"] = "visit"
+    st.markdown(
+        f'<button class="my-tab{" selected" if st.session_state["custom_tab"]=="visit" else ""}">Log a Visit</button>',
+        unsafe_allow_html=True
+    )
+with col2:
+    if st.button("Dashboard", key="tab_dashboard_btn", help="View Dashboard"):
+        st.session_state["custom_tab"] = "dashboard"
+    st.markdown(
+        f'<button class="my-tab{" selected" if st.session_state["custom_tab"]=="dashboard" else ""}">Dashboard</button>',
+        unsafe_allow_html=True
+    )
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Utility functions and data loading (same as before)
 CUSTOMERS_CSV = "customers.csv"
 VISITS_CSV = "visits.csv"
 
@@ -129,29 +160,6 @@ def is_customer_closed(agent, trading_name, area, closed_accounts_df):
         (closed_accounts_df['Trading Name'] == trading_name) & \
         (closed_accounts_df['Area'] == area)
     return closed_accounts_df[q].shape[0] > 0
-
-# --- Custom Tabs state ---
-if "custom_tab" not in st.session_state:
-    st.session_state["custom_tab"] = "visit"
-
-# --- Custom tab row ---
-st.markdown('<div class="custom-tabs-row">', unsafe_allow_html=True)
-c1, c2 = st.columns([1,1])
-with c1:
-    if st.button("➕ Log a Visit", key="tab_visit_btn", help="Log a new customer visit"):
-        st.session_state["custom_tab"] = "visit"
-    st.markdown(
-        f'<button class="custom-tab-btn{" selected" if st.session_state["custom_tab"]=="visit" else ""}">➕ Log a Visit</button>',
-        unsafe_allow_html=True
-    )
-with c2:
-    if st.button("📊 Dashboard", key="tab_dashboard_btn", help="View Dashboard"):
-        st.session_state["custom_tab"] = "dashboard"
-    st.markdown(
-        f'<button class="custom-tab-btn{" selected" if st.session_state["custom_tab"]=="dashboard" else ""}">📊 Dashboard</button>',
-        unsafe_allow_html=True
-    )
-st.markdown('</div>', unsafe_allow_html=True)
 
 if st.session_state["custom_tab"] == "visit":
     st.markdown('<div class="big-title">LOG A VISIT</div>', unsafe_allow_html=True)
