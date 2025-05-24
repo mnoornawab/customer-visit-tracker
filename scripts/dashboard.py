@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import date, datetime, timedelta
 import os
 import hashlib
+# Add this at the top of your script (right after imports)
 st.set_page_config(
     page_title=PAGE_TITLE,
     layout="wide",
