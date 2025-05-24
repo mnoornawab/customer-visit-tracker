@@ -101,33 +101,32 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Tab state
+# Only one tab row, with browser-like tabs
 if "custom_tab" not in st.session_state:
     st.session_state["custom_tab"] = "visit"
 
-# --- Custom Tabs (browser-like) ---
+# Render the custom tab row
+tab_labels = [("visit", "Log a Visit"), ("dashboard", "Dashboard")]
 st.markdown('<div class="my-tabs-container">', unsafe_allow_html=True)
-col1, col2 = st.columns([1,1])
-with col1:
-    if st.button("Log a Visit", key="tab_visit_btn", help="Log a new customer visit"):
-        st.session_state["custom_tab"] = "visit"
+for tab_key, tab_label in tab_labels:
+    selected = st.session_state["custom_tab"] == tab_key
+    js = f"window.parent.postMessage({{'type': 'streamlit:setComponentValue', 'value': '{tab_key}'}}, '*')" # For JS click fallback
     st.markdown(
-        f'<button class="my-tab{" selected" if st.session_state["custom_tab"]=="visit" else ""}">Log a Visit</button>',
-        unsafe_allow_html=True
-    )
-with col2:
-    if st.button("Dashboard", key="tab_dashboard_btn", help="View Dashboard"):
-        st.session_state["custom_tab"] = "dashboard"
-    st.markdown(
-        f'<button class="my-tab{" selected" if st.session_state["custom_tab"]=="dashboard" else ""}">Dashboard</button>',
-        unsafe_allow_html=True
+        f"""
+        <button class="my-tab{' selected' if selected else ''}" onclick="window.location.search='?tab={tab_key}'">{tab_label}</button>
+        """, unsafe_allow_html=True
     )
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Utility functions and data loading (same as before)
+# Update tab state from URL query param (simulate browser tab switch behavior)
+params = st.experimental_get_query_params()
+if "tab" in params and params["tab"][0] in ["visit", "dashboard"]:
+    st.session_state["custom_tab"] = params["tab"][0]
+
+# ===================  PAGE CONTENTS BELOW  ====================
+
 CUSTOMERS_CSV = "customers.csv"
 VISITS_CSV = "visits.csv"
-
 def load_visits():
     if os.path.exists(VISITS_CSV):
         visits = pd.read_csv(VISITS_CSV)
