@@ -3,7 +3,16 @@ import pandas as pd
 from datetime import date, datetime, timedelta
 import os
 import hashlib
-
+st.set_page_config(
+    page_title=PAGE_TITLE,
+    layout="wide",
+    page_icon=PAGE_ICON,
+    menu_items={
+        'Get Help': None,
+        'Report a bug': None,
+        'About': None
+    }
+)
 # ====================== CONFIGURATION ======================
 CUSTOMERS_CSV = "customers.csv"
 VISITS_CSV = "visits.csv"
