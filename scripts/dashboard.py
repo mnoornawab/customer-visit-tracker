@@ -101,7 +101,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Only one tab row, with browser-like tabs
+# Only one tab row, browser-like tabs, session state only
 if "custom_tab" not in st.session_state:
     st.session_state["custom_tab"] = "visit"
 
@@ -110,18 +110,28 @@ tab_labels = [("visit", "Log a Visit"), ("dashboard", "Dashboard")]
 st.markdown('<div class="my-tabs-container">', unsafe_allow_html=True)
 for tab_key, tab_label in tab_labels:
     selected = st.session_state["custom_tab"] == tab_key
-    js = f"window.parent.postMessage({{'type': 'streamlit:setComponentValue', 'value': '{tab_key}'}}, '*')" # For JS click fallback
-    st.markdown(
-        f"""
-        <button class="my-tab{' selected' if selected else ''}" onclick="window.location.search='?tab={tab_key}'">{tab_label}</button>
-        """, unsafe_allow_html=True
+    tab_click = (
+        f"""<button class="my-tab{' selected' if selected else ''}" onclick="fetch('', {{method: 'POST', headers: {{'Content-Type': 'application/x-www-form-urlencoded'}}, body: 'tab={tab_key}'}}).then(() => window.location.reload());">{tab_label}</button>"""
+        if not selected else
+        f"""<button class="my-tab selected">{tab_label}</button>"""
     )
+    st.markdown(tab_click, unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Update tab state from URL query param (simulate browser tab switch behavior)
-params = st.experimental_get_query_params()
-if "tab" in params and params["tab"][0] in ["visit", "dashboard"]:
-    st.session_state["custom_tab"] = params["tab"][0]
+# Tab switch logic: set session state if tab is clicked
+from streamlit.runtime.scriptrunner import get_script_run_ctx
+import streamlit.web.bootstrap
+if "tab" in st.experimental_get_query_params():
+    tabval = st.experimental_get_query_params()["tab"][0]
+    if tabval in ["visit", "dashboard"]:
+        st.session_state["custom_tab"] = tabval
+
+# Handle form POST for tab clicks (for the HTML/JS tab buttons)
+import streamlit as st
+if st.experimental_get_query_params().get("tab"):
+    tab_val = st.experimental_get_query_params()["tab"][0]
+    if tab_val in ["visit", "dashboard"]:
+        st.session_state["custom_tab"] = tab_val
 
 # ===================  PAGE CONTENTS BELOW  ====================
 
