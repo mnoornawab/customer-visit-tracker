@@ -13,8 +13,9 @@ def load_customers():
         for col in ['Agent Name', 'Trading Name', 'Area', 'Province']:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.strip()
-        # Drop rows with missing or empty Agent Name
-        df = df[df['Agent Name'].notna() & (df['Agent Name'].str.strip() != "")]
+        # Drop rows with missing/empty Agent Name or Area
+        df = df[df['Agent Name'].notna() & (df['Agent Name'] != "")]
+        df = df[df['Area'].notna() & (df['Area'] != "")]
         return df
     except Exception as e:
         st.error(f"Error loading {CUSTOMERS_CSV}: {e}")
@@ -129,7 +130,7 @@ if st.session_state["page"] == "visit":
             key="agent_select"
         )
 
-        # Filter areas for selected agent, use dynamic key so it refreshes when agent changes
+        # Filter areas for selected agent
         areas = customers[customers["Agent Name"] == agent_name]["Area"].dropna()
         areas = areas[areas != ""].unique().tolist()
         area = st.selectbox(
@@ -138,7 +139,7 @@ if st.session_state["page"] == "visit":
             key=f"area_select_{agent_name}"
         )
 
-        # Province: filtered by agent and area, dynamic key for change
+        # Province: filtered by agent and area
         provinces = customers[
             (customers["Agent Name"] == agent_name) &
             (customers["Area"] == area)
