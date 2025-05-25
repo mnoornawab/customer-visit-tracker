@@ -4,9 +4,9 @@ from datetime import date, datetime
 import os
 
 # === File constants ===
-CUSTOMERS_CSV = "customers.csv"
-VISITS_CSV = "visits.csv"
-CLOSED_ACCOUNTS_CSV = "closed_accounts.csv"
+CUSTOMERS_CSV = "../customers.csv"
+VISITS_CSV = "../visits.csv"
+CLOSED_ACCOUNTS_CSV = "../closed_accounts.csv"
 
 # === Data Loading Functions ===
 def load_customers():
@@ -20,7 +20,6 @@ def load_customers():
 def load_closed_accounts():
     if os.path.exists(CLOSED_ACCOUNTS_CSV):
         df = pd.read_csv(CLOSED_ACCOUNTS_CSV)
-        # Ensure columns exist, even if file is empty or corrupted
         for col in ['Agent Name', 'Trading Name', 'Area']:
             if col not in df.columns:
                 df[col] = ""
@@ -70,7 +69,6 @@ def log_visits(rows):
     else:
         new_visits_df.to_csv(VISITS_CSV, mode="w", header=True, index=False)
 
-# === Navigation Buttons ===
 st.set_page_config(page_title="SIMA Customer Visits", layout="wide", page_icon="👁️")
 if "page" not in st.session_state:
     st.session_state["page"] = "visit"
@@ -95,43 +93,52 @@ if st.session_state["page"] == "visit":
     customers = load_customers()
     closed_accounts_df = load_closed_accounts()
 
-    # Step 1: Agent Name
     agent_list = customers["Agent Name"].dropna().unique()
-    agent_name = st.selectbox("Agent Name", agent_list if len(agent_list) else [""], key="agent_select")
 
-    # Step 2: Area (per Agent)
-    areas = customers[customers["Agent Name"] == agent_name]["Area"].dropna().unique()
-    area = st.selectbox("Area", areas if len(areas) else [""], key="area_select")
+    def clear_form():
+        st.session_state.agent_select = agent_list[0] if len(agent_list) else ""
+        # Area reset depends on agent
+        areas = customers[customers["Agent Name"] == (agent_list[0] if len(agent_list) else "")]["Area"].dropna().unique()
+        st.session_state.area_select = areas[0] if len(areas) else ""
+        provinces = customers[
+            (customers["Agent Name"] == (agent_list[0] if len(agent_list) else "")) &
+            (customers["Area"] == (areas[0] if len(areas) else ""))
+        ]["Province"].dropna().unique()
+        if len(provinces) == 1:
+            st.session_state.province_display = provinces[0]
+        else:
+            st.session_state.province_select = provinces[0] if len(provinces) else ""
+        st.session_state.customer_multi = []
+        st.session_state.visit_date = date.today()
+        st.session_state.visit_notes = ""
+        st.session_state.close_select = "No"
 
-    # Step 3: Province (per Agent + Area)
-    province = ""
-    provinces = customers[(customers["Agent Name"] == agent_name) & (customers["Area"] == area)]["Province"].dropna().unique()
-    if len(provinces) == 1:
-        province = provinces[0]
-        st.text_input("Province", province, key="province_display", disabled=True)
-    else:
-        province = st.selectbox("Province", provinces if len(provinces) else [""], key="province_select")
+    with st.form("visit_form", clear_on_submit=True):
+        agent_name = st.selectbox("Agent Name", agent_list if len(agent_list) else [""], key="agent_select")
+        areas = customers[customers["Agent Name"] == agent_name]["Area"].dropna().unique()
+        area = st.selectbox("Area", areas if len(areas) else [""], key="area_select")
+        provinces = customers[(customers["Agent Name"] == agent_name) & (customers["Area"] == area)]["Province"].dropna().unique()
+        if len(provinces) == 1:
+            province = provinces[0]
+            st.text_input("Province", province, key="province_display", disabled=True)
+        else:
+            province = st.selectbox("Province", provinces if len(provinces) else [""], key="province_select")
+        customers_in_area = customers[
+            (customers["Agent Name"] == agent_name) & (customers["Area"] == area)
+        ]
+        customers_in_area = customers_in_area.drop_duplicates(subset=["Trading Name"])
+        open_customers = [
+            row['Trading Name']
+            for idx, row in customers_in_area.iterrows()
+            if not is_customer_closed(row['Agent Name'], row['Trading Name'], row['Area'], closed_accounts_df)
+        ]
+        selected_customers = st.multiselect("Select Customers (multiple)", open_customers, key="customer_multi")
+        visit_date = st.date_input("Visit Date", date.today(), key="visit_date")
+        notes = st.text_input("Notes (optional)", placeholder="Add notes about this visit", key="visit_notes")
+        closed_account = st.selectbox("Closed Account (applies to ALL selected)", ["No", "Yes"], key="close_select")
+        submitted = st.form_submit_button("Add Visit", disabled=not selected_customers, on_click=clear_form)
 
-    # Step 4: Customer Multi-select (only open customers for agent+area, no duplicates)
-    customers_in_area = customers[
-        (customers["Agent Name"] == agent_name) & (customers["Area"] == area)
-    ]
-    customers_in_area = customers_in_area.drop_duplicates(subset=["Trading Name"])
-    open_customers = [
-        row['Trading Name']
-        for idx, row in customers_in_area.iterrows()
-        if not is_customer_closed(row['Agent Name'], row['Trading Name'], row['Area'], closed_accounts_df)
-    ]
-    selected_customers = st.multiselect("Select Customers (multiple)", open_customers, key="customer_multi")
-
-    # Step 5: Visit Date / Notes / Closed Account
-    visit_date = st.date_input("Visit Date", date.today(), key="visit_date")
-    notes = st.text_input("Notes (optional)", placeholder="Add notes about this visit", key="visit_notes")
-    closed_account = st.selectbox("Closed Account (applies to ALL selected)", ["No", "Yes"], key="close_select")
-
-    add_btn = st.button("Add Visit", disabled=not selected_customers, key="log_visit_btn")
-
-    if add_btn:
+    if submitted:
         visit_rows = []
         for trading_name in selected_customers:
             visit_rows.append({
@@ -148,18 +155,6 @@ if st.session_state["page"] == "visit":
         log_visits(visit_rows)
         st.success(f"Logged {len(visit_rows)} visits for {agent_name} in {area}.")
         st.balloons()
-
-        # --- RESET FORM FIELDS ---
-        st.session_state.agent_select = agent_list[0] if len(agent_list) else ""
-        st.session_state.area_select = areas[0] if len(areas) else ""
-        if len(provinces) == 1:
-            st.session_state.province_display = province
-        else:
-            st.session_state.province_select = provinces[0] if len(provinces) else ""
-        st.session_state.customer_multi = []
-        st.session_state.visit_date = date.today()
-        st.session_state.visit_notes = ""
-        st.session_state.close_select = "No"
 
 # === Dashboard Page ===
 elif st.session_state["page"] == "dashboard":
@@ -182,7 +177,6 @@ elif st.session_state["page"] == "dashboard":
             area_list = ['All'] + sorted(customers['Area'].dropna().astype(str).unique().tolist())
         area = st.selectbox('Area', area_list, key='dashboard_area')
     with filter3:
-        # Province filter
         if agent != 'All' and area != 'All':
             province_list = ['All'] + sorted(customers[(customers['Agent Name'] == agent) & (customers['Area'] == area)]['Province'].dropna().astype(str).unique().tolist())
         elif agent != 'All':
@@ -235,7 +229,6 @@ elif st.session_state["page"] == "dashboard":
         st.markdown("#### Customer Visits")
         if not filtered.empty:
             def format_trading_name(row):
-                # Mark as closed if in closed_accounts.csv
                 is_closed = is_customer_closed(
                     row['Agent Name'],
                     row['Trading Name'],
@@ -330,7 +323,6 @@ elif st.session_state["page"] == "dashboard":
             key='download-csv'
         )
 
-# === Closed Accounts Page ===
 elif st.session_state["page"] == "closed":
     st.markdown("<h2 style='color:#a94442; text-align:center; font-weight:900;'>CLOSED ACCOUNTS</h2>", unsafe_allow_html=True)
     st.write("")
