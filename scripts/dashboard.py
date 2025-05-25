@@ -12,6 +12,9 @@ CLOSED_ACCOUNTS_CSV = "closed_accounts.csv"
 def load_customers():
     try:
         df = pd.read_csv(CUSTOMERS_CSV)
+        for col in ['Agent Name', 'Trading Name', 'Area', 'Province']:
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.strip()
         return df
     except Exception as e:
         st.error(f"Error loading {CUSTOMERS_CSV}: {e}")
@@ -21,8 +24,8 @@ def load_closed_accounts():
     if os.path.exists(CLOSED_ACCOUNTS_CSV):
         df = pd.read_csv(CLOSED_ACCOUNTS_CSV)
         for col in ['Agent Name', 'Trading Name', 'Area']:
-            if col not in df.columns:
-                df[col] = ""
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.strip()
         return df
     else:
         df = pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area'])
@@ -57,6 +60,10 @@ def load_visits():
                 visits[col] = ""
         if 'Province' not in visits.columns:
             visits['Province'] = ""
+        # Clean up string columns
+        for col in ['Agent Name', 'Trading Name', 'Area', 'Province']:
+            if col in visits.columns:
+                visits[col] = visits[col].astype(str).str.strip()
     else:
         visits = pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area', 'Province', 'Visit Date', 'Notes', 'Closed Account'])
     return visits
@@ -92,12 +99,11 @@ if st.session_state["page"] == "visit":
 
     customers = load_customers()
     closed_accounts_df = load_closed_accounts()
-
     agent_list = customers["Agent Name"].dropna().unique().tolist()
 
     def clear_form():
         st.session_state.agent_select = agent_list[0] if agent_list else ""
-        # Reset area and province
+        # Reset area and province for initial agent
         areas = customers[customers["Agent Name"] == (agent_list[0] if agent_list else "")]["Area"].dropna().unique().tolist()
         st.session_state[f"area_select_{agent_list[0] if agent_list else ''}"] = areas[0] if areas else ""
         provinces = customers[
@@ -119,14 +125,16 @@ if st.session_state["page"] == "visit":
             agent_list if agent_list else [""],
             key="agent_select"
         )
-        # Area is filtered by agent, dynamic key so it refreshes when agent changes
+
+        # Filter areas for selected agent, use dynamic key so it refreshes when agent changes
         areas = customers[customers["Agent Name"] == agent_name]["Area"].dropna().unique().tolist()
         area = st.selectbox(
             "Area",
             areas if areas else [""],
             key=f"area_select_{agent_name}"
         )
-        # Province is filtered by agent and area, dynamic key so it refreshes when area changes
+
+        # Province: filtered by agent and area, dynamic key for change
         provinces = customers[
             (customers["Agent Name"] == agent_name) &
             (customers["Area"] == area)
@@ -145,6 +153,7 @@ if st.session_state["page"] == "visit":
                 provinces if provinces else [""],
                 key=f"province_select_{agent_name}_{area}"
             )
+
         # Customers filtered by agent and area, and not closed
         customers_in_area = customers[
             (customers["Agent Name"] == agent_name) & (customers["Area"] == area)
