@@ -57,13 +57,21 @@ agent_name = st.selectbox("Agent Name", customers["Agent Name"].dropna().unique(
 areas = customers[customers["Agent Name"] == agent_name]["Area"].dropna().unique()
 area = st.selectbox("Area", areas)
 
-# Step 3: Customer Multi-select (only open customers for agent+area)
-customers_in_area = customers[(customers["Agent Name"] == agent_name) & (customers["Area"] == area)]
+# Step 3: Customer Multi-select (only open customers for agent+area, no duplicates)
+customers_in_area = customers[
+    (customers["Agent Name"] == agent_name) & (customers["Area"] == area)
+]
+
+# Remove duplicates by Trading Name (keep only first occurrence)
+customers_in_area = customers_in_area.drop_duplicates(subset=["Trading Name"])
+
+# Only include open customers
 open_customers = [
     row['Trading Name']
     for idx, row in customers_in_area.iterrows()
     if not is_customer_closed(row['Agent Name'], row['Trading Name'], row['Area'], closed_accounts_df)
 ]
+
 selected_customers = st.multiselect("Select Customers (multiple)", open_customers)
 
 # Step 4: Visit Date / Notes / Closed Account
