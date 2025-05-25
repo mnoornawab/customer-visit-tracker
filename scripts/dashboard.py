@@ -101,6 +101,13 @@ with nav3:
         st.session_state["page"] = "closed"
 
 # === Log a Visit Page ===
+def clear_form_callback():
+    # Safely reset session state keys for form widgets
+    st.session_state["customer_multi"] = []
+    st.session_state["visit_date"] = date.today()
+    st.session_state["visit_notes"] = ""
+    st.session_state["close_select"] = "No"
+
 if st.session_state["page"] == "visit":
     st.markdown("<h2 style='color:#ff3c00; text-align:center; font-weight:900;'>LOG A VISIT</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center;'>Log your customer visits below. Select multiple customers for the same agent/area/date.</p>", unsafe_allow_html=True)
@@ -109,10 +116,6 @@ if st.session_state["page"] == "visit":
     customers = load_customers()
     closed_accounts_df = load_closed_accounts()
     agent_list = customers["Agent Name"].dropna().unique().tolist()
-
-    # --- Session state for form clearing ---
-    if "clear_form" not in st.session_state:
-        st.session_state.clear_form = False
 
     # --- Step 1: Select Agent ---
     agent_name = st.selectbox("Agent Name", agent_list, key="agent_select")
@@ -137,13 +140,6 @@ if st.session_state["page"] == "visit":
         for idx, row in customers_in_area.iterrows()
         if not is_customer_closed(row['Agent Name'], row['Trading Name'], row['Area'], closed_accounts_df)
     ]
-
-    # --- Form widgets, using session_state for clear ---
-    def clear_form_callback():
-        st.session_state["customer_multi"] = []
-        st.session_state["visit_date"] = date.today()
-        st.session_state["visit_notes"] = ""
-        st.session_state["close_select"] = "No"
 
     with st.form("visit_form", clear_on_submit=False):
         selected_customers = st.multiselect("Select Customers (multiple)", open_customers, key="customer_multi")
@@ -177,9 +173,7 @@ if st.session_state["page"] == "visit":
                 st.balloons()
 
     # --- Clear Form Button ---
-    if st.button("Clear Form"):
-        clear_form_callback()
-        st.experimental_rerun()
+    st.button("Clear Form", on_click=clear_form_callback)
 
     st.write("DEBUG: Absolute path to visits.csv:", os.path.abspath(VISITS_CSV))
 
