@@ -99,32 +99,52 @@ if st.session_state["page"] == "visit":
         st.session_state.agent_select = agent_list[0] if agent_list else ""
         # Reset area and province
         areas = customers[customers["Agent Name"] == (agent_list[0] if agent_list else "")]["Area"].dropna().unique().tolist()
-        st.session_state.area_select = areas[0] if areas else ""
+        st.session_state[f"area_select_{agent_list[0] if agent_list else ''}"] = areas[0] if areas else ""
         provinces = customers[
             (customers["Agent Name"] == (agent_list[0] if agent_list else "")) &
             (customers["Area"] == (areas[0] if areas else ""))
         ]["Province"].dropna().unique().tolist()
         if len(provinces) == 1:
-            st.session_state.province_display = provinces[0]
+            st.session_state[f"province_display_{agent_list[0] if agent_list else ''}_{areas[0] if areas else ''}"] = provinces[0]
         else:
-            st.session_state.province_select = provinces[0] if provinces else ""
+            st.session_state[f"province_select_{agent_list[0] if agent_list else ''}_{areas[0] if areas else ''}"] = provinces[0] if provinces else ""
         st.session_state.customer_multi = []
         st.session_state.visit_date = date.today()
         st.session_state.visit_notes = ""
         st.session_state.close_select = "No"
 
     with st.form("visit_form", clear_on_submit=True):
-        agent_name = st.selectbox("Agent Name", agent_list if agent_list else [""], key="agent_select")
-        # Area is filtered by agent
+        agent_name = st.selectbox(
+            "Agent Name",
+            agent_list if agent_list else [""],
+            key="agent_select"
+        )
+        # Area is filtered by agent, dynamic key so it refreshes when agent changes
         areas = customers[customers["Agent Name"] == agent_name]["Area"].dropna().unique().tolist()
-        area = st.selectbox("Area", areas if areas else [""], key="area_select")
-        # Province is filtered by agent and area
-        provinces = customers[(customers["Agent Name"] == agent_name) & (customers["Area"] == area)]["Province"].dropna().unique().tolist()
+        area = st.selectbox(
+            "Area",
+            areas if areas else [""],
+            key=f"area_select_{agent_name}"
+        )
+        # Province is filtered by agent and area, dynamic key so it refreshes when area changes
+        provinces = customers[
+            (customers["Agent Name"] == agent_name) &
+            (customers["Area"] == area)
+        ]["Province"].dropna().unique().tolist()
         if len(provinces) == 1:
             province = provinces[0]
-            st.text_input("Province", province, key="province_display", disabled=True)
+            st.text_input(
+                "Province",
+                province,
+                key=f"province_display_{agent_name}_{area}",
+                disabled=True
+            )
         else:
-            province = st.selectbox("Province", provinces if provinces else [""], key="province_select")
+            province = st.selectbox(
+                "Province",
+                provinces if provinces else [""],
+                key=f"province_select_{agent_name}_{area}"
+            )
         # Customers filtered by agent and area, and not closed
         customers_in_area = customers[
             (customers["Agent Name"] == agent_name) & (customers["Area"] == area)
