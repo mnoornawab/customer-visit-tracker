@@ -68,8 +68,12 @@ def load_visits():
     return visits
 
 def log_visits(rows):
-    st.write("DEBUG: About to log these visits to CSV:", rows)
+    st.write("DEBUG: Writing to visits.csv at:", os.path.abspath(VISITS_CSV))
     visits_exist = os.path.exists(VISITS_CSV)
+    # Ensure visit date is a string for CSV compatibility
+    for row in rows:
+        if isinstance(row.get("Visit Date"), (datetime, date)):
+            row["Visit Date"] = str(row["Visit Date"])
     new_visits_df = pd.DataFrame(rows)
     st.write("DEBUG: DataFrame to be written/appended:", new_visits_df)
     try:
@@ -106,6 +110,10 @@ if st.session_state["page"] == "visit":
     closed_accounts_df = load_closed_accounts()
     agent_list = customers["Agent Name"].dropna().unique().tolist()
 
+    # --- Session state for form clearing ---
+    if "clear_form" not in st.session_state:
+        st.session_state.clear_form = False
+
     # --- Step 1: Select Agent ---
     agent_name = st.selectbox("Agent Name", agent_list, key="agent_select")
 
@@ -117,7 +125,8 @@ if st.session_state["page"] == "visit":
     provinces = customers[
         (customers["Agent Name"] == agent_name) & (customers["Area"] == area)
     ]["Province"].dropna().unique().tolist()
-    province = provinces[0] if len(provinces) == 1 else st.selectbox("Province", provinces, key=f"province_select_{agent_name}_{area}")
+    province_default = provinces[0] if len(provinces) == 1 else None
+    province = st.selectbox("Province", provinces, key=f"province_select_{agent_name}_{area}", index=0 if province_default else 0)
 
     # --- Step 4: Customers in Area ---
     customers_in_area = customers[
@@ -129,13 +138,20 @@ if st.session_state["page"] == "visit":
         if not is_customer_closed(row['Agent Name'], row['Trading Name'], row['Area'], closed_accounts_df)
     ]
 
-    with st.form("visit_form", clear_on_submit=True):
+    # --- Form widgets, using session_state for clear ---
+    def clear_form_callback():
+        st.session_state["customer_multi"] = []
+        st.session_state["visit_date"] = date.today()
+        st.session_state["visit_notes"] = ""
+        st.session_state["close_select"] = "No"
+
+    with st.form("visit_form", clear_on_submit=False):
         selected_customers = st.multiselect("Select Customers (multiple)", open_customers, key="customer_multi")
         visit_date = st.date_input("Visit Date", date.today(), key="visit_date")
         notes = st.text_input("Notes (optional)", placeholder="Add notes about this visit", key="visit_notes")
         closed_account = st.selectbox("Closed Account (applies to ALL selected)", ["No", "Yes"], key="close_select")
-
         submitted = st.form_submit_button("Add Visit")
+
         if submitted:
             st.write("DEBUG: Form submitted")
             st.write("DEBUG: selected_customers:", selected_customers)
@@ -149,7 +165,7 @@ if st.session_state["page"] == "visit":
                         "Trading Name": trading_name,
                         "Area": area,
                         "Province": province,
-                        "Visit Date": visit_date,
+                        "Visit Date": str(visit_date),
                         "Notes": notes,
                         "Closed Account": closed_account
                     })
@@ -159,6 +175,13 @@ if st.session_state["page"] == "visit":
                 log_visits(visit_rows)
                 st.success(f"Logged {len(visit_rows)} visits for {agent_name} in {area}.")
                 st.balloons()
+
+    # --- Clear Form Button ---
+    if st.button("Clear Form"):
+        clear_form_callback()
+        st.experimental_rerun()
+
+    st.write("DEBUG: Absolute path to visits.csv:", os.path.abspath(VISITS_CSV))
 
 # === Dashboard Page ===
 elif st.session_state["page"] == "dashboard":
