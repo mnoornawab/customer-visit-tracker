@@ -68,12 +68,18 @@ def load_visits():
     return visits
 
 def log_visits(rows):
+    st.write("DEBUG: About to log these visits to CSV:", rows)
     visits_exist = os.path.exists(VISITS_CSV)
     new_visits_df = pd.DataFrame(rows)
-    if visits_exist:
-        new_visits_df.to_csv(VISITS_CSV, mode="a", header=False, index=False)
-    else:
-        new_visits_df.to_csv(VISITS_CSV, mode="w", header=True, index=False)
+    st.write("DEBUG: DataFrame to be written/appended:", new_visits_df)
+    try:
+        if visits_exist:
+            new_visits_df.to_csv(VISITS_CSV, mode="a", header=False, index=False)
+        else:
+            new_visits_df.to_csv(VISITS_CSV, mode="w", header=True, index=False)
+        st.success(f"DEBUG: {len(rows)} visits written to {VISITS_CSV}")
+    except Exception as e:
+        st.error(f"DEBUG: Failed to write to {VISITS_CSV}: {e}")
 
 st.set_page_config(page_title="SIMA Customer Visits", layout="wide", page_icon="👁️")
 if "page" not in st.session_state:
@@ -129,10 +135,10 @@ if st.session_state["page"] == "visit":
         notes = st.text_input("Notes (optional)", placeholder="Add notes about this visit", key="visit_notes")
         closed_account = st.selectbox("Closed Account (applies to ALL selected)", ["No", "Yes"], key="close_select")
 
-        # FIX: Always enable the button. Handle validation after click.
         submitted = st.form_submit_button("Add Visit")
-
         if submitted:
+            st.write("DEBUG: Form submitted")
+            st.write("DEBUG: selected_customers:", selected_customers)
             if not selected_customers:
                 st.error("Please select at least one customer to log a visit.")
             else:
@@ -149,6 +155,7 @@ if st.session_state["page"] == "visit":
                     })
                     if closed_account == "Yes":
                         add_closed_account(agent_name, trading_name, area)
+                st.write("DEBUG: visit_rows to log:", visit_rows)
                 log_visits(visit_rows)
                 st.success(f"Logged {len(visit_rows)} visits for {agent_name} in {area}.")
                 st.balloons()
