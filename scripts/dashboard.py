@@ -128,26 +128,28 @@ if st.session_state["page"] == "visit":
         visit_date = st.date_input("Visit Date", date.today(), key="visit_date")
         notes = st.text_input("Notes (optional)", placeholder="Add notes about this visit", key="visit_notes")
         closed_account = st.selectbox("Closed Account (applies to ALL selected)", ["No", "Yes"], key="close_select")
-        submitted = st.form_submit_button("Add Visit", disabled=not selected_customers)
-
-        if submitted:
-            visit_rows = []
-            for trading_name in selected_customers:
-                visit_rows.append({
-                    "Agent Name": agent_name,
-                    "Trading Name": trading_name,
-                    "Area": area,
-                    "Province": province,
-                    "Visit Date": visit_date,
-                    "Notes": notes,
-                    "Closed Account": closed_account
-                })
-                if closed_account == "Yes":
-                    add_closed_account(agent_name, trading_name, area)
-            log_visits(visit_rows)
-            st.success(f"Logged {len(visit_rows)} visits for {agent_name} in {area}.")
-            st.balloons()
-
+		
+     submitted = st.form_submit_button("Add Visit")
+if submitted:
+    if not selected_customers:
+        st.error("Please select at least one customer to log a visit.")
+    else:
+        visit_rows = []
+        for trading_name in selected_customers:
+            visit_rows.append({
+                "Agent Name": agent_name,
+                "Trading Name": trading_name,
+                "Area": area,
+                "Province": province,
+                "Visit Date": visit_date,
+                "Notes": notes,
+                "Closed Account": closed_account
+            })
+            if closed_account == "Yes":
+                add_closed_account(agent_name, trading_name, area)
+        log_visits(visit_rows)
+        st.success(f"Logged {len(visit_rows)} visits for {agent_name} in {area}.")
+        st.balloons()
 # === Dashboard Page ===
 elif st.session_state["page"] == "dashboard":
     st.markdown("<h2 style='color:#145DA0; text-align:center; font-weight:900;'>DASHBOARD</h2>", unsafe_allow_html=True)
