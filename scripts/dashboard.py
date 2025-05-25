@@ -15,7 +15,7 @@ def load_customers():
         return df
     except Exception as e:
         st.error(f"Error loading {CUSTOMERS_CSV}: {e}")
-        return pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area'])
+        return pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area', 'Province'])
 
 def load_closed_accounts():
     if os.path.exists(CLOSED_ACCOUNTS_CSV):
@@ -53,12 +53,13 @@ def load_visits():
         visits = pd.read_csv(VISITS_CSV)
         if 'Visit Date' in visits.columns:
             visits['Visit Date'] = pd.to_datetime(visits['Visit Date'], errors='coerce')
-        if 'Notes' not in visits.columns:
-            visits['Notes'] = ""
-        if 'Closed Account' not in visits.columns:
-            visits['Closed Account'] = "No"
+        for col in ['Notes', 'Closed Account']:
+            if col not in visits.columns:
+                visits[col] = ""
+        if 'Province' not in visits.columns:
+            visits['Province'] = ""
     else:
-        visits = pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area', 'Visit Date', 'Notes', 'Closed Account'])
+        visits = pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area', 'Province', 'Visit Date', 'Notes', 'Closed Account'])
     return visits
 
 def log_visits(rows):
@@ -96,32 +97,39 @@ if st.session_state["page"] == "visit":
 
     # Step 1: Agent Name
     agent_list = customers["Agent Name"].dropna().unique()
-    agent_name = st.selectbox("Agent Name", agent_list if len(agent_list) else [""])
+    agent_name = st.selectbox("Agent Name", agent_list if len(agent_list) else [""], key="agent_select")
 
     # Step 2: Area (per Agent)
     areas = customers[customers["Agent Name"] == agent_name]["Area"].dropna().unique()
-    area = st.selectbox("Area", areas if len(areas) else [""])
+    area = st.selectbox("Area", areas if len(areas) else [""], key="area_select")
 
-    # Step 3: Customer Multi-select (only open customers for agent+area, no duplicates)
+    # Step 3: Province (per Agent + Area)
+    province = ""
+    provinces = customers[(customers["Agent Name"] == agent_name) & (customers["Area"] == area)]["Province"].dropna().unique()
+    if len(provinces) == 1:
+        province = provinces[0]
+        st.text_input("Province", province, key="province_display", disabled=True)
+    else:
+        province = st.selectbox("Province", provinces if len(provinces) else [""], key="province_select")
+
+    # Step 4: Customer Multi-select (only open customers for agent+area, no duplicates)
     customers_in_area = customers[
         (customers["Agent Name"] == agent_name) & (customers["Area"] == area)
     ]
-    # Remove duplicates by Trading Name (keep only first occurrence)
     customers_in_area = customers_in_area.drop_duplicates(subset=["Trading Name"])
-    # Only include open customers
     open_customers = [
         row['Trading Name']
         for idx, row in customers_in_area.iterrows()
         if not is_customer_closed(row['Agent Name'], row['Trading Name'], row['Area'], closed_accounts_df)
     ]
-    selected_customers = st.multiselect("Select Customers (multiple)", open_customers)
+    selected_customers = st.multiselect("Select Customers (multiple)", open_customers, key="customer_multi")
 
-    # Step 4: Visit Date / Notes / Closed Account
-    visit_date = st.date_input("Visit Date", date.today())
-    notes = st.text_input("Notes (optional)", placeholder="Add notes about this visit")
-    closed_account = st.selectbox("Closed Account (applies to ALL selected)", ["No", "Yes"])
+    # Step 5: Visit Date / Notes / Closed Account
+    visit_date = st.date_input("Visit Date", date.today(), key="visit_date")
+    notes = st.text_input("Notes (optional)", placeholder="Add notes about this visit", key="visit_notes")
+    closed_account = st.selectbox("Closed Account (applies to ALL selected)", ["No", "Yes"], key="close_select")
 
-    add_btn = st.button("Add Visit", disabled=not selected_customers)
+    add_btn = st.button("Add Visit", disabled=not selected_customers, key="log_visit_btn")
 
     if add_btn:
         visit_rows = []
@@ -130,6 +138,7 @@ if st.session_state["page"] == "visit":
                 "Agent Name": agent_name,
                 "Trading Name": trading_name,
                 "Area": area,
+                "Province": province,
                 "Visit Date": visit_date,
                 "Notes": notes,
                 "Closed Account": closed_account
@@ -139,6 +148,18 @@ if st.session_state["page"] == "visit":
         log_visits(visit_rows)
         st.success(f"Logged {len(visit_rows)} visits for {agent_name} in {area}.")
         st.balloons()
+
+        # --- RESET FORM FIELDS ---
+        st.session_state.agent_select = agent_list[0] if len(agent_list) else ""
+        st.session_state.area_select = areas[0] if len(areas) else ""
+        if len(provinces) == 1:
+            st.session_state.province_display = province
+        else:
+            st.session_state.province_select = provinces[0] if len(provinces) else ""
+        st.session_state.customer_multi = []
+        st.session_state.visit_date = date.today()
+        st.session_state.visit_notes = ""
+        st.session_state.close_select = "No"
 
 # === Dashboard Page ===
 elif st.session_state["page"] == "dashboard":
@@ -161,8 +182,17 @@ elif st.session_state["page"] == "dashboard":
             area_list = ['All'] + sorted(customers['Area'].dropna().astype(str).unique().tolist())
         area = st.selectbox('Area', area_list, key='dashboard_area')
     with filter3:
-        view_mode = st.selectbox("View by", ["Day", "Date Range", "Quarter"], key="view_mode_select")
+        # Province filter
+        if agent != 'All' and area != 'All':
+            province_list = ['All'] + sorted(customers[(customers['Agent Name'] == agent) & (customers['Area'] == area)]['Province'].dropna().astype(str).unique().tolist())
+        elif agent != 'All':
+            province_list = ['All'] + sorted(customers[customers['Agent Name'] == agent]['Province'].dropna().astype(str).unique().tolist())
+        else:
+            province_list = ['All'] + sorted(customers['Province'].dropna().astype(str).unique().tolist())
+        province = st.selectbox("Province", province_list, key="dashboard_province")
     with filter4:
+        view_mode = st.selectbox("View by", ["Day", "Date Range", "Quarter"], key="view_mode_select")
+    with filter5:
         if view_mode == "Day":
             selected_date = st.date_input("Date", value=date.today(), key="dashboard_day")
         elif view_mode == "Date Range":
@@ -178,14 +208,14 @@ elif st.session_state["page"] == "dashboard":
             else:
                 year = datetime.now().year
             quarter = st.selectbox('Quarter', [1, 2, 3, 4], key="dashboard_quarter")
-    with filter5:
-        pass
 
     filtered = visits.copy()
     if agent != 'All':
         filtered = filtered[filtered['Agent Name'] == agent]
     if area != 'All':
         filtered = filtered[filtered['Area'] == area]
+    if province != 'All':
+        filtered = filtered[filtered['Province'] == province]
 
     if view_mode == "Day":
         filtered = filtered[filtered["Visit Date"].dt.date == selected_date]
@@ -220,7 +250,7 @@ elif st.session_state["page"] == "dashboard":
 
             styled_df = filtered.copy()
             styled_df['Trading Name'] = styled_df.apply(format_trading_name, axis=1)
-            styled_df = styled_df[['Agent Name', 'Trading Name', 'Area', 'Visit Date', 'Notes', 'Closed Account']]
+            styled_df = styled_df[['Agent Name', 'Trading Name', 'Area', 'Province', 'Visit Date', 'Notes', 'Closed Account']]
             styled_df['Visit Date'] = styled_df['Visit Date'].astype(str)
 
             def highlight_closed(row):
@@ -247,6 +277,8 @@ elif st.session_state["page"] == "dashboard":
             customers_filtered = customers_filtered[customers_filtered['Agent Name'] == agent]
         if area != 'All':
             customers_filtered = customers_filtered[customers_filtered['Area'] == area]
+        if province != 'All':
+            customers_filtered = customers_filtered[customers_filtered['Province'] == province]
         for _, cust in customers_filtered.iterrows():
             closed = is_customer_closed(cust['Agent Name'], cust['Trading Name'], cust['Area'], closed_accounts_df)
             closed_note = ""
@@ -261,12 +293,13 @@ elif st.session_state["page"] == "dashboard":
             row_name = f"❌ {cust['Trading Name']}" if closed else cust['Trading Name']
             if closed:
                 row_name += f" (Closed Account{': '+closed_note if closed_note else ''})"
-            row = [cust['Agent Name'], row_name, cust['Area']]
+            row = [cust['Agent Name'], row_name, cust['Area'], cust['Province']]
             for m in months_numbers[quarter]:
                 month_visits = filtered[
                     (filtered['Trading Name'] == cust['Trading Name']) &
                     (filtered['Agent Name'] == cust['Agent Name']) &
                     (filtered['Area'] == cust['Area']) &
+                    (filtered['Province'] == cust['Province']) &
                     (filtered['Visit Date'].dt.month == m)
                 ]
                 if not month_visits.empty:
@@ -275,7 +308,7 @@ elif st.session_state["page"] == "dashboard":
                 else:
                     row.append("0")
             report.append(row)
-        columns = ['Agent Name', 'Trading Name', 'Area'] + months_quarters[quarter]
+        columns = ['Agent Name', 'Trading Name', 'Area', 'Province'] + months_quarters[quarter]
         report_df = pd.DataFrame(report, columns=columns)
         def closed_row_highlight(row):
             if str(row['Trading Name']).startswith('❌'):
