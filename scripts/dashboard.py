@@ -3,35 +3,29 @@ import pandas as pd
 from datetime import date, datetime
 import os
 
-st.set_page_config(page_title="SIMA Customer Visits", layout="wide", page_icon="👁️")
-
+# === File constants ===
 CUSTOMERS_CSV = "customers.csv"
 VISITS_CSV = "visits.csv"
 CLOSED_ACCOUNTS_CSV = "closed_accounts.csv"
 
-def load_visits():
-    if os.path.exists(VISITS_CSV):
-        visits = pd.read_csv(VISITS_CSV)
-        if 'Visit Date' in visits.columns:
-            visits['Visit Date'] = pd.to_datetime(visits['Visit Date'], errors='coerce')
-        if 'Notes' not in visits.columns:
-            visits['Notes'] = ""
-        if 'Closed Account' not in visits.columns:
-            visits['Closed Account'] = "No"
-    else:
-        visits = pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area', 'Visit Date', 'Notes', 'Closed Account'])
-    return visits
+# === Data Loading Functions ===
+def load_customers():
+    try:
+        df = pd.read_csv(CUSTOMERS_CSV)
+        return df
+    except Exception as e:
+        st.error(f"Error loading {CUSTOMERS_CSV}: {e}")
+        return pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area'])
 
 def load_closed_accounts():
     if os.path.exists(CLOSED_ACCOUNTS_CSV):
         df = pd.read_csv(CLOSED_ACCOUNTS_CSV)
-        # If columns are missing, add them
+        # Ensure columns exist, even if file is empty or corrupted
         for col in ['Agent Name', 'Trading Name', 'Area']:
             if col not in df.columns:
                 df[col] = ""
         return df
     else:
-        # Always create with headers if missing
         df = pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area'])
         df.to_csv(CLOSED_ACCOUNTS_CSV, index=False)
         return df
@@ -54,103 +48,107 @@ def is_customer_closed(agent, trading_name, area, closed_accounts_df):
         (closed_accounts_df['Area'] == area)
     return closed_accounts_df[q].shape[0] > 0
 
-try:
-    customers = pd.read_csv(CUSTOMERS_CSV)
-except Exception as e:
-    st.error(f"Error loading customers.csv: {e}")
-    st.stop()
+def load_visits():
+    if os.path.exists(VISITS_CSV):
+        visits = pd.read_csv(VISITS_CSV)
+        if 'Visit Date' in visits.columns:
+            visits['Visit Date'] = pd.to_datetime(visits['Visit Date'], errors='coerce')
+        if 'Notes' not in visits.columns:
+            visits['Notes'] = ""
+        if 'Closed Account' not in visits.columns:
+            visits['Closed Account'] = "No"
+    else:
+        visits = pd.DataFrame(columns=['Agent Name', 'Trading Name', 'Area', 'Visit Date', 'Notes', 'Closed Account'])
+    return visits
 
-# --- Simple page navigation buttons ---
+def log_visits(rows):
+    visits_exist = os.path.exists(VISITS_CSV)
+    new_visits_df = pd.DataFrame(rows)
+    if visits_exist:
+        new_visits_df.to_csv(VISITS_CSV, mode="a", header=False, index=False)
+    else:
+        new_visits_df.to_csv(VISITS_CSV, mode="w", header=True, index=False)
+
+# === Navigation Buttons ===
+st.set_page_config(page_title="SIMA Customer Visits", layout="wide", page_icon="👁️")
 if "page" not in st.session_state:
     st.session_state["page"] = "visit"
 
-col1, col2, col3 = st.columns(3)
-with col1:
+nav1, nav2, nav3 = st.columns(3)
+with nav1:
     if st.button("Log a Visit"):
         st.session_state["page"] = "visit"
-with col2:
+with nav2:
     if st.button("Dashboard"):
         st.session_state["page"] = "dashboard"
-with col3:
+with nav3:
     if st.button("Closed Accounts"):
         st.session_state["page"] = "closed"
 
-# --- Log a Visit Page ---
+# === Log a Visit Page ===
 if st.session_state["page"] == "visit":
     st.markdown("<h2 style='color:#ff3c00; text-align:center; font-weight:900;'>LOG A VISIT</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>Log your customer visits below. If a customer account is closed, select \"Yes\" and add a note.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;'>Log your customer visits below. Select multiple customers for the same agent/area/date.</p>", unsafe_allow_html=True)
     st.write("")
 
-    visits = load_visits()
+    customers = load_customers()
     closed_accounts_df = load_closed_accounts()
 
-    cols = st.columns([1,1,1])
-    agent_name = cols[0].selectbox("Agent Name", customers["Agent Name"].dropna().unique(), key="visit_agent")
+    # Step 1: Agent Name
+    agent_list = customers["Agent Name"].dropna().unique()
+    agent_name = st.selectbox("Agent Name", agent_list if len(agent_list) else [""])
 
-    agent_customers_all = customers[customers["Agent Name"] == agent_name]
-    trading_names_open = []
-    areas_open = []
-    for _, row in agent_customers_all.iterrows():
-        if not is_customer_closed(row['Agent Name'], row['Trading Name'], row['Area'], closed_accounts_df):
-            trading_names_open.append(row['Trading Name'])
-            areas_open.append(row['Area'])
+    # Step 2: Area (per Agent)
+    areas = customers[customers["Agent Name"] == agent_name]["Area"].dropna().unique()
+    area = st.selectbox("Area", areas if len(areas) else [""])
 
-    if trading_names_open:
-        trading_name = cols[1].selectbox(
-            "Trading Name (type to search)", trading_names_open, key="visit_trading"
-        )
-        idx = trading_names_open.index(trading_name)
-        area = areas_open[idx]
-        can_submit = True
-    else:
-        trading_name = ""
-        area = ""
-        cols[1].selectbox("Trading Name (type to search)", ["No open customers"], key="visit_trading_disabled", disabled=True)
-        can_submit = False
+    # Step 3: Customer Multi-select (only open customers for agent+area, no duplicates)
+    customers_in_area = customers[
+        (customers["Agent Name"] == agent_name) & (customers["Area"] == area)
+    ]
+    # Remove duplicates by Trading Name (keep only first occurrence)
+    customers_in_area = customers_in_area.drop_duplicates(subset=["Trading Name"])
+    # Only include open customers
+    open_customers = [
+        row['Trading Name']
+        for idx, row in customers_in_area.iterrows()
+        if not is_customer_closed(row['Agent Name'], row['Trading Name'], row['Area'], closed_accounts_df)
+    ]
+    selected_customers = st.multiselect("Select Customers (multiple)", open_customers)
 
-    cols[2].text_input("Area", area, disabled=True, key="area_text")
-
+    # Step 4: Visit Date / Notes / Closed Account
     visit_date = st.date_input("Visit Date", date.today())
-    notes = st.text_input("Notes (optional)", key="visit_notes", placeholder="Add any notes about this visit")
-    closed_account = st.selectbox("Closed Account", ["No", "Yes"], key="closed_account_select")
+    notes = st.text_input("Notes (optional)", placeholder="Add notes about this visit")
+    closed_account = st.selectbox("Closed Account (applies to ALL selected)", ["No", "Yes"])
 
-    add_btn = st.button("Add Visit", disabled=not can_submit)
-    if not can_submit and agent_name:
-        st.warning("All customers for this agent are marked as closed. You cannot log further visits for closed customers.")
+    add_btn = st.button("Add Visit", disabled=not selected_customers)
 
-    if add_btn and can_submit:
-        visits = load_visits()
-        new_visit = pd.DataFrame([{
-            "Agent Name": agent_name,
-            "Trading Name": trading_name,
-            "Area": area,
-            "Visit Date": visit_date,
-            "Notes": notes,
-            "Closed Account": closed_account
-        }])
-        for col in ['Notes', 'Closed Account']:
-            if col not in visits.columns:
-                visits[col] = ""
-        if os.path.exists(VISITS_CSV):
-            new_visit.to_csv(VISITS_CSV, mode="a", header=False, index=False)
-        else:
-            new_visit.to_csv(VISITS_CSV, mode="w", header=True, index=False)
-        # If closed, add to closed_accounts.csv
-        if closed_account == "Yes":
-            add_closed_account(agent_name, trading_name, area)
-            st.success("✅ Visit logged successfully and marked as closed. This customer will no longer appear in the list.")
-        else:
-            st.success("✅ Visit logged successfully!")
+    if add_btn:
+        visit_rows = []
+        for trading_name in selected_customers:
+            visit_rows.append({
+                "Agent Name": agent_name,
+                "Trading Name": trading_name,
+                "Area": area,
+                "Visit Date": visit_date,
+                "Notes": notes,
+                "Closed Account": closed_account
+            })
+            if closed_account == "Yes":
+                add_closed_account(agent_name, trading_name, area)
+        log_visits(visit_rows)
+        st.success(f"Logged {len(visit_rows)} visits for {agent_name} in {area}.")
         st.balloons()
 
-# --- Dashboard Page ---
+# === Dashboard Page ===
 elif st.session_state["page"] == "dashboard":
     st.markdown("<h2 style='color:#145DA0; text-align:center; font-weight:900;'>DASHBOARD</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center;'>Analyze and download customer visit records. Use filters below.</p>", unsafe_allow_html=True)
     st.write("")
 
-    visits = load_visits()
+    customers = load_customers()
     closed_accounts_df = load_closed_accounts()
+    visits = load_visits()
 
     filter1, filter2, filter3, filter4, filter5 = st.columns([1.8,1.8,1.8,1.8,2])
     with filter1:
@@ -299,7 +297,7 @@ elif st.session_state["page"] == "dashboard":
             key='download-csv'
         )
 
-# --- Closed Accounts Page ---
+# === Closed Accounts Page ===
 elif st.session_state["page"] == "closed":
     st.markdown("<h2 style='color:#a94442; text-align:center; font-weight:900;'>CLOSED ACCOUNTS</h2>", unsafe_allow_html=True)
     st.write("")
@@ -307,5 +305,6 @@ elif st.session_state["page"] == "closed":
     if closed_accounts_df.empty:
         st.info("No closed accounts.")
     else:
-        st.dataframe(closed_accounts_df.style.apply(lambda row: ['background-color: #ffebe6; color: #a94442']*len(row), axis=1),
-                     use_container_width=True, hide_index=True)
+        st.dataframe(closed_accounts_df.style.apply(
+            lambda row: ['background-color: #ffebe6; color: #a94442']*len(row), axis=1),
+            use_container_width=True, hide_index=True)
