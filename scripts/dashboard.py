@@ -106,7 +106,7 @@ def clear_form_callback():
     st.session_state["visit_date"] = date.today()
     st.session_state["visit_notes"] = ""
     st.session_state["close_select"] = "No"
-    st.experimental_rerun()
+    st.rerun()  # Use st.rerun() for Streamlit v1.30+
 
 if st.session_state["page"] == "visit":
     st.markdown("<h2 style='color:#ff3c00; text-align:center; font-weight:900;'>LOG A VISIT</h2>", unsafe_allow_html=True)
